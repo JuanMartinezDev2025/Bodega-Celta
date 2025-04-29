@@ -1,0 +1,1450 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Bodega Celta</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js"></script>
+  <style>
+    body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; }
+    /*canvas para renderizar*/
+    canvas { display: block; }
+  
+    #controls {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255, 255, 255, 0.9);
+      padding: 15px;
+      border-radius: 5px;
+      display: flex;
+      gap: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    button {
+      padding: 8px 15px;
+      cursor: pointer;
+      background: #2196f3;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    button:hover {
+      background: #0b7dda;
+    }
+    select, input {
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+    }
+    /* Panel de información de caja (simplificado ya que usaremos el modal) */
+    #box-info-panel {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: rgba(255, 255, 255, 0.95);
+      padding: 15px;
+      border-radius: 5px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+      max-width: 300px;
+      z-index: 1000;
+      display: none;
+      border: 1px solid #2196F3;
+      animation: fadeIn 0.3s ease-out;
+    }
+
+    /* Modal de información detallada */
+    #box-modal {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.3);
+      z-index: 1001;
+      width: 80%;
+      max-width: 800px;
+      max-height: 80vh;
+      overflow-y: auto;
+      display: none;
+    }
+    
+    #box-modal h3 {
+      margin-top: 0;
+      color: #2196f3;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 10px;
+    }
+    
+    .modal-section {
+      margin-bottom: 20px;
+    }
+    
+    .modal-section h4 {
+      margin-bottom: 10px;
+      color: #555;
+    }
+    
+    .box-info-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-bottom: 15px;
+    }
+    
+    .box-info-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px;
+      background: #f9f9f9;
+      border-radius: 4px;
+    }
+    
+    .box-info-label {
+      font-weight: bold;
+      color: #666;
+    }
+    
+    .articles-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    
+    .articles-table th {
+      background-color: #2196f3;
+      color: white;
+      padding: 10px;
+      text-align: left;
+    }
+    
+    .articles-table td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #ddd;
+    }
+    
+    .articles-table tr:nth-child(even) {
+      background-color: #f2f2f2;
+    }
+    
+    .articles-table tr:hover {
+      background-color: #e6f7ff;
+    }
+    
+    #close-modal {
+      margin-top: 20px;
+      padding: 8px 15px;
+      background: #2196f3;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      float: right;
+    }
+    
+    #close-modal:hover {
+      background: #0b7dda;
+    }
+    
+   /* Modo añadir info */
+    #add-mode-info {
+      position: fixed;
+      top: 5px; /* Ajustado para estar debajo de los otros paneles */
+      right: 10px;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 10px;
+      border-radius: 5px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+      max-width: 300px;
+      z-index: 10;
+    }
+   
+ 
+
+    /* Animación para aparecer suavemente */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Responsive para pantallas pequeñas */
+    @media (max-width: 768px) {
+      #box-info-panel {
+        right: 10px;
+        bottom: 10px;
+        left: 10px;          /* Ocupa todo el ancho en móviles */
+        max-width: none;     /* Sin límite de ancho */
+        width: auto;
+      }
+    }
+    #hall-info-panel {
+      position: absolute;
+      bottom: 80px;
+      left: 10px;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 15px;
+      border-radius: 5px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+      max-width: 300px;
+    }
+    #add-box-form {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      padding: 20px;
+      border-radius: 5px;
+      box-shadow: 0 0 20px rgba(0,0,0,0.3);
+      display: none;
+      z-index: 102;
+      width: 300px;
+    }
+    #add-box-form h3 {
+      margin-top: 0;
+    }
+    #add-box-form label {
+      display: block;
+      margin: 10px 0 5px;
+    }
+    #add-box-form .form-buttons {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 15px;
+    }
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 5px;
+    }
+    .info-label {
+      font-weight: bold;
+    }
+
+    #detailed-hall-info-panel {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: white;
+    padding: 20px;
+    border-radius: 5px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.3);
+    display: none;
+    z-index: 101;
+    width: 80%;
+    max-width: 900px;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+
+  .table-container {
+    overflow-x: auto;
+    margin: 15px 0;
+  }
+
+  .info-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+
+.info-table th {
+  background-color: #2196f3;
+  color: white;
+  padding: 10px;
+  text-align: left;
+  position: sticky;
+  top: 0;
+}
+
+.info-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #ddd;
+}
+
+.info-table tr:nth-child(even) {
+  background-color: #f2f2f2;
+}
+
+.info-table tr:hover {
+  background-color: #e6f7ff;
+}
+
+.column-header {
+  background-color: #e3f2fd !important;
+  font-weight: bold;
+  color: #0d47a1;
+}
+/* Media queries para responsividad */
+@media (max-width: 768px) {
+ 
+  body {
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+  }
+  
+  canvas {
+    order: 3;
+    width: 100% !important;
+    height: auto !important;
+  }
+  
+  #controls {
+    position: relative;
+    transform: none;
+    left: auto;
+    bottom: auto;
+    margin: 10px;
+    order: 4;
+  }
+}
+  </style>
+</head>
+<body>
+ 
+ 
+
+ 
+
+   <!-- Modal de información detallada de caja -->
+   <div id="box-modal">
+    <h3>Información Detallada de la Posicion</h3>
+    
+      <div class="modal-section">
+        <h4>Información General</h4>
+        <div class="box-info-grid">
+          <div class="box-info-item">
+            <span class="box-info-label">Etiqueta:</span>
+            <span id="modal-box-label"></span>
+          </div>
+          <div class="box-info-item">
+            <span class="box-info-label">Categoría:</span>
+            <span id="modal-box-category"></span>
+          </div>
+          <div class="box-info-item">
+            <span class="box-info-label">Posicion:</span>
+            <span id="modal-box-location"></span>
+          </div>
+          <div class="box-info-item">
+            <span class="box-info-label">Capacidad:</span>
+            <span id="modal-box-capacity"></span>
+          </div>
+        </div>
+      </div>
+      
+      <div class="modal-section">
+        <h4>Artículos en la Caja</h4>
+        <table class="articles-table">
+          <thead>
+            <tr>
+              <th>Artículo</th>
+              <th>Nombre</th>
+              <th>Lote</th>
+              <th>Palet</th>
+              <th>Cantidad</th>
+
+            </tr>
+          </thead>
+          <tbody id="modal-box-articles">
+            <!-- Los artículos se llenarán dinámicamente -->
+          </tbody>
+        </table>
+      </div>
+      
+      <button id="close-modal">Cerrar</button>
+    </div>
+    <!-- Importar Three.js y OrbitControls -->
+  <script type="module">
+    import * as THREE from './three.module.js';
+    import { OrbitControls } from './orbitcontrols.js';
+    import { FontLoader } from './FontLoader.js';
+    import { TextGeometry } from './TextGeometry.js';
+    
+    // 1. PRIMERO DECLARAR LAS VARIABLES PRINCIPALES DE THREE.JS
+    const scene = new THREE.Scene(); //Crear escena
+    const renderer = new THREE.WebGLRenderer({ antialias: true }); // Crear renderizador anti pixelado
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000); // Crear vista de camara, zoom y perspectiva, relacion aspecto para que la camara se adapte dinamicamente, cuanto me puedo acercar y alejar
+    
+    // 2. CONFIGURACIÓN INICIAL
+    scene.background = new THREE.Color(0xf0f0f0); // Color gris claro de fondo
+    renderer.setSize(window.innerWidth, window.innerHeight); // Tamaño del renderizador que se adapta a la pantalla
+    document.body.appendChild(renderer.domElement); //Insertar canvas "lienzo/pantalla completa" en el body
+  // En tu función init()
+  camera.position.set(40, 35, 40); // Posición más elevada y alejada
+  camera.lookAt(15, 5, 20); // Mirar hacia el centro del almacén
+  // 3. CONTROLES Y LUCES
+    const controls = new OrbitControls(camera, renderer.domElement); //Controles de movimiento de la camara
+    controls.enableDamping = true; // Permitir suavizado de movimiento "se desliza un poco antes de soltar el clcik"
+    controls.dampingFactor = 0.05; // Que tan rapido se detiene el movimiento al soltar el click
+    controls.target.set(0, 3, 0); // Punto central donde la camara mira
+
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5); // Luz ambiental de todo el entorno
+    scene.add(ambientLight); 
+    
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8); //Luz direccional que simula el sol
+    directionalLight.position.set(5, 10, 7); //Posicion de la luz
+    scene.add(directionalLight);
+
+    // 4. VARIABLES GLOBALES 
+    let selectedBox = null; // Caja actualmente clickeada
+    let hoverHighlight = null; // Resaltado verde al pasar el mouse
+    const boxes = []; // Array con todos los mesh/objetos de las cajas 
+    const columns = []; // Array de las columnas
+    const bases = []; // Placas abajo de las cajas
+    let pendingAddPosition = null; // Almacena la posición para añadir una nueva caja
+
+ // Modificamos las funciones principales que afectan al posicionamiento
+
+ let config = {}
+ 
+function actualizarConfiguracion() {
+
+    config = {
+        gridWidth: 70,              // Mayor ancho para acomodar los racks con margen
+        gridDepth: 70,              // Mayor profundidad para el margen
+        columnWidth: 1,
+        widthDivisions: 70,         // Más divisiones para mayor precisión
+        depthDivisions: 70,         // Más divisiones para mayor precisión
+        alturaCaja: 0.8,
+        espacioVertical: 0.1,
+        anchoCaja: 0.8,
+        profundidadCaja: 0.9,
+        // Parámetros para racks
+        numeroRacks: 10,            // A-J son 10 racks
+        rackColor: 0x2196F3,
+        primerRackX: 15,            // Posición X del primer rack (aumentada para margen)
+        distanciaEntreRacks: 5,     // Espaciado entre racks
+        margenAlrededor: 5          // Margen alrededor de todos los racks (en unidades de celda)
+    };
+    calcularTamanosCeldas();
+}
+
+function calcularTamanosCeldas() {
+    config.cellSizeX = config.gridWidth / config.widthDivisions; // Calcular tamaño de ancho de celda 
+    config.cellSizeZ = config.gridDepth / config.depthDivisions;
+    config.anchoCaja = config.cellSizeX * 0.85; // 85% del tamaño de celda
+    config.profundidadCaja = config.cellSizeZ * 0.85; // 85% del tamaño de celda
+}
+
+// 7. COLORES POR CATEGORÍA
+const colores = {
+    'disponible': 0x4CAF50,
+    'con-mercancia': 0xFFA500,
+    'lleno': 0xF44336,
+    default: 0x9e9e9e
+};
+
+
+// 2. Nueva función para asignar letra a cada rack basada en su posición X
+function asignarLetraRack(rackIndex) {
+    // Convierte índice a letra (0 = A, 1 = B, etc.)
+    return String.fromCharCode(65 + Math.min(9, Math.max(0, rackIndex)));
+}
+
+// Datos ampliados para incluir pasillos A hasta G
+const initialData = [
+    // PASILLO A
+   
+    
+];
+
+
+
+
+
+ 
+function agregarCaja(columnaData, indexCaja, posX, posZ) {
+    const cajaData = columnaData.cajas[indexCaja];
+    const color = colores[cajaData.categoria] || colores.default;
+    
+    const geometriaCaja = new THREE.BoxGeometry(
+        config.cellSizeX * 0.85, // Ajustado al tamaño de la celda
+        config.alturaCaja, 
+        config.cellSizeZ * 0.85  // Ajustado al tamaño de la celda
+    );
+    
+    const materialCaja = new THREE.MeshStandardMaterial({ 
+        color: color,
+        metalness: 0.3,
+        roughness: 0.4
+    });
+    
+    const caja = new THREE.Mesh(geometriaCaja, materialCaja);
+    
+    // Posicionamos la caja exactamente en el centro de la celda
+    caja.position.set(
+        posX, 
+        config.alturaCaja/2, 
+        posZ
+    );
+    
+    // Configurar sombras y bordes
+    caja.castShadow = true;
+    caja.receiveShadow = true;
+    
+    const edges = new THREE.EdgesGeometry(caja.geometry);
+    const line = new THREE.LineSegments(
+        edges,
+        new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 1 })
+    );
+    caja.add(line);
+    caja.userData.bordes = line;
+
+    // Crear etiquetas
+    crearEtiquetaMulticara(caja, cajaData.etiqueta || `Caja-${indexCaja}`);
+                
+    // Almacenar datos
+    caja.userData = {
+        columna: columnaData,
+        index: indexCaja,
+        info: cajaData
+    };
+    
+    scene.add(caja);
+    boxes.push(caja);
+    return caja;
+}
+
+   
+      //Actualizar etiquetas de las cajas
+      function actualizarEtiquetasMulticara() {
+        boxes.forEach(caja => {
+            // Eliminar etiquetas antiguas
+            if (caja.userData.etiquetaMesh) {
+                caja.remove(caja.userData.etiquetaMesh);
+            }
+            
+            // Crear nuevas etiquetas
+            crearEtiquetaMulticara(caja, caja.userData.info.etiqueta || `Caja-${caja.userData.index}`);
+        });
+    }
+
+
+
+    
+    //Crear etiquetas en todas las caras de la caja
+    function crearEtiquetaMulticara(caja, texto) {
+    const loader = new THREE.FontLoader();
+    
+    loader.load('./helvetiker_regular.typeface.json', function(font) {
+        // Eliminar etiqueta existente si hay una
+        if (caja.userData.etiquetaMesh) {
+            caja.remove(caja.userData.etiquetaMesh);
+        }
+        
+        const grupoEtiquetas = new THREE.Group();
+        const textSize = Math.min(config.alturaCaja * 0.15, 0.3); // Limitar tamaño máximo
+        
+        // Crear geometría para el texto actual
+        const textGeometry = new THREE.TextGeometry(texto, {
+            font: font,
+            size: textSize,
+            height: 0.02,
+            curveSegments: 4,
+            bevelEnabled: false
+        });
+        
+        // Centrar el texto
+        textGeometry.computeBoundingBox();
+        const textWidth = textGeometry.boundingBox.max.x - textGeometry.boundingBox.min.x;
+        const textHeight = textGeometry.boundingBox.max.y - textGeometry.boundingBox.min.y;
+        textGeometry.translate(-textWidth/2, -textHeight/2, 0);
+        
+        const textMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0x000000,
+            transparent: true,
+            opacity: 0.9
+        });
+        
+        // Configuraciones para cada cara
+        const caras = [
+            { pos: [0, 0, config.profundidadCaja/2 + 0.01], rot: [0, 0, 0] },       // Frontal
+            { pos: [0, 0, -config.profundidadCaja/2 - 0.01], rot: [0, Math.PI, 0] }, // Trasera
+            { pos: [config.anchoCaja/2 + 0.01, 0, 0], rot: [0, Math.PI/2, 0] },      // Derecha
+            { pos: [-config.anchoCaja/2 - 0.01, 0, 0], rot: [0, -Math.PI/2, 0] },    // Izquierda
+            { pos: [0, config.alturaCaja/2 + 0.01, 0], rot: [-Math.PI/2, 0, 0] },    // Superior
+            //{ pos: [0, -config.alturaCaja/2 - 0.01, 0], rot: [Math.PI/2, 0, 0] }     // Inferior (opcional)
+        ];
+        
+        caras.forEach((cara) => {
+            const textMesh = new THREE.Mesh(textGeometry.clone(), textMaterial.clone());
+            textMesh.position.set(...cara.pos);
+            textMesh.rotation.set(...cara.rot);
+            
+            // Crear fondo para la etiqueta
+            const fondoWidth = textWidth + textSize * 0.5;
+            const fondoHeight = textHeight + textSize * 0.3;
+            const fondoGeometry = new THREE.PlaneGeometry(fondoWidth, fondoHeight);
+            const fondoMaterial = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.7
+            });
+            
+            const fondo = new THREE.Mesh(fondoGeometry, fondoMaterial);
+            fondo.position.copy(textMesh.position);
+            fondo.rotation.copy(textMesh.rotation);
+            // Ajustar posición Z para que el fondo esté detrás del texto
+            fondo.position.z += (cara.pos[2] >= 0) ? 0.001 : -0.001;
+            
+            grupoEtiquetas.add(fondo);
+            grupoEtiquetas.add(textMesh);
+        });
+        
+        caja.add(grupoEtiquetas);
+        caja.userData.etiquetaMesh = grupoEtiquetas;
+    });
+}
+
+    // Función para optimizar etiquetas
+    function optimizarEtiquetas() {
+    // Compartir geometría y material entre todas las etiquetas
+    const loader = new FontLoader();
+    
+    loader.load('./helvetiker_regular.typeface.json', function(font) {
+        // Crear geometría compartida
+        const sampleText = "000"; // Texto de muestra para tamaño
+        const textGeometry = new TextGeometry(sampleText, {
+            font: font,
+            size: config.alturaCaja * 0.15,
+            height: 0.02,
+            curveSegments: 4,
+            bevelEnabled: false
+        });
+        
+        // Material compartido
+        const textMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0x000000,
+            transparent: true,
+            opacity: 0.9
+        });
+        
+        const fondoMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            side: THREE.DoubleSide,
+            transparent: true,
+            opacity: 0.7
+        });
+        
+        boxes.forEach(caja => {
+            if (caja.userData.etiquetaMesh) {
+                caja.remove(caja.userData.etiquetaMesh);
+            }
+            
+            const grupoEtiquetas = new THREE.Group();
+            const texto = caja.userData.info.etiqueta || `Caja-${caja.userData.index}`;
+            
+            // Calcular ancho del texto actual
+            const tempGeometry = textGeometry.clone();
+            tempGeometry = new TextGeometry(texto, {
+                font: font,
+                size: config.alturaCaja * 0.15,
+                height: 0.02,
+                curveSegments: 4,
+                bevelEnabled: false
+            });
+            tempGeometry.computeBoundingBox();
+            const textWidth = tempGeometry.boundingBox.max.x - tempGeometry.boundingBox.min.x;
+            tempGeometry.translate(-textWidth/2, 0, 0);
+            
+            // ... (resto del código para crear etiquetas en cada cara)
+            
+            caja.add(grupoEtiquetas);
+            caja.userData.etiquetaMesh = grupoEtiquetas;
+        });
+    });
+}
+   
+
+    function crearResaltador() {
+      const geometria = new THREE.BoxGeometry(
+        config.cellSizeX * 0.95, // Ancho (95% del tamaño de celda)
+        0.02,                   // Altura (muy delgado)
+        config.cellSizeZ * 0.95  // Profundidad (95% del tamaño de celda)
+      );
+      const material = new THREE.MeshBasicMaterial({
+        color: 0x00ff00,        // Color verde brillante
+        transparent: true,
+        opacity: 0.5,
+        wireframe: false
+      });
+      
+      hoverHighlight = new THREE.Mesh(geometria, material);
+      hoverHighlight.visible = false;
+      scene.add(hoverHighlight);
+    }
+
+    // Si hay una función para reconstruir columnas, también la actualizamos
+function reconstruirColumna(columna) {
+    // Eliminar todas las cajas de esta columna
+    boxes.filter(b => b.userData.columna === columna).forEach(b => {
+        // Eliminar también las etiquetas
+        if (b.userData.etiquetaMesh) {
+            b.remove(b.userData.etiquetaMesh);
+        }
+        scene.remove(b);
+    });
+    
+    // Calcular posición basada en gridPos
+    const gridOffsetX = -config.gridWidth / 2;
+    const gridOffsetZ = -config.gridDepth / 2;
+    
+    // Posición X (ajustada para alinear correctamente con la cuadrícula)
+    let posX = gridOffsetX + (columna.gridPos.x * config.cellSizeX) + config.cellSizeX/2;
+    
+    // Posición Z (normal)
+    const posZ = gridOffsetZ + (columna.gridPos.z * config.cellSizeZ) + config.cellSizeZ/2;
+    
+    // Volver a crear las cajas (que ahora incluirán etiquetas)
+    columna.cajas.forEach((cajaData, index) => {
+        const nuevaCaja = agregarCaja(columna, index, posX, posZ);
+        // Modificar en las funciones relevantes para que siempre sean visibles
+        boxes.forEach(box => {
+            box.visible = true; // Siempre visible
+        });
+
+        bases.forEach(base => {
+            base.visible = true; // Siempre visible
+        });
+    });
+}
+
+
+// Actualizar la función mostrarModalCaja para mostrar la información correctamente
+function mostrarModalCaja(caja) {
+    const info = caja.userData.info;
+    const columnaData = caja.userData.columna;
+
+    // Llenar la información general
+    document.getElementById('modal-box-label').textContent = info.etiqueta || 'N/A';
+    document.getElementById('modal-box-category').textContent = info.categoria || 'N/A';
+    document.getElementById('modal-box-capacity').textContent = `${info.capacidad_disponible || 0}/${info.capacidad_total || 0}`;
+    
+    // Modificar para mostrar rack como una fila
+    const letraRack = columnaData.rack || 'N/A';
+    document.getElementById('modal-box-location').textContent = `Rack ${letraRack} - Fila`;
+    
+    // Llenar la tabla de artículos
+    const articulosTableBody = document.getElementById('modal-box-articles');
+    articulosTableBody.innerHTML = '';
+    
+    if (info.articulos && info.articulos.length > 0) {
+      info.articulos.forEach(articulo => {
+        const row = document.createElement('tr');
+        
+        // Crear celdas para cada propiedad del artículo
+        const codigoCell = document.createElement('td');
+        codigoCell.textContent = articulo.codigo || 'N/A';
+        
+        const nombreCell = document.createElement('td');
+        nombreCell.textContent = articulo.nombre || 'N/A';
+        
+        const loteCell = document.createElement('td');
+        loteCell.textContent = articulo.lote || 'N/A';
+        
+        const paletCell = document.createElement('td');
+        paletCell.textContent = articulo.palet || 'N/A';
+        
+        const cantidadCell = document.createElement('td');
+        cantidadCell.textContent = articulo.cantidad || '0';
+        
+        // Añadir las celdas a la fila
+        row.appendChild(codigoCell);
+        row.appendChild(nombreCell);
+        row.appendChild(loteCell);
+        row.appendChild(paletCell);
+        row.appendChild(cantidadCell);
+        
+        // Añadir la fila a la tabla
+        articulosTableBody.appendChild(row);
+      });
+    } else {
+      // Si no hay artículos, mostrar mensaje
+      const row = document.createElement('tr');
+      const cell = document.createElement('td');
+      cell.colSpan = 6; // Para que ocupe todas las columnas
+      cell.textContent = 'No hay artículos en esta caja';
+      cell.style.textAlign = 'center';
+      row.appendChild(cell);
+      articulosTableBody.appendChild(row);
+    }
+    
+    // Mostrar el modal y el overlay
+    document.getElementById('box-modal').style.display = 'block';
+    document.getElementById('modal-overlay').style.display = 'block';
+}
+
+    //Mostrasr informacion de la caja 
+    function mostrarInformacionCaja(caja) {
+      const infoPanel = document.getElementById('box-info-panel');
+      const info = caja.userData.info;
+
+      document.getElementById('box-info-etiqueta').textContent = info.etiqueta || 'N/A';
+      document.getElementById('box-info-articulo').textContent = info.articulo || 'N/A';
+      document.getElementById('box-info-producto').textContent = info.producto || 'N/A';  // Añadir esta línea
+      document.getElementById('box-info-lote').textContent = info.lote || 'N/A';
+      document.getElementById('box-info-palet').textContent = info.palet || 'N/A';
+      document.getElementById('box-info-cantidad').textContent = info.cantidad || 'N/A';
+      document.getElementById('box-info-categoria').textContent = info.categoria || 'N/A';
+      
+      infoPanel.style.display = 'block';
+    }
+
+   
+    
+
+    function getGridPositionFromClick(event) {
+      const mouse = new THREE.Vector2(
+        (event.clientX / window.innerWidth) * 2 - 1,
+        -(event.clientY / window.innerHeight) * 2 + 1
+      );
+      
+      const raycaster = new THREE.Raycaster();
+      raycaster.setFromCamera(mouse, camera);
+      
+      const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+      const intersection = new THREE.Vector3();
+      if (!raycaster.ray.intersectPlane(plane, intersection)) {
+        return null;
+      }
+      
+      const gridOffsetX = -config.gridWidth / 2;
+      const gridOffsetZ = -config.gridDepth / 2;
+      
+      const gridX = Math.floor((intersection.x - gridOffsetX) / config.cellSizeX);
+      const gridZ = Math.floor((intersection.z - gridOffsetZ) / config.cellSizeZ);
+      
+      if (gridX >= 0 && gridX < config.widthDivisions && 
+          gridZ >= 0 && gridZ < config.depthDivisions) {
+        return { x: gridX, z: gridZ };
+      }
+      
+      return null;
+    }
+
+    // 9. Interacción
+    function setupInteraccion() {
+      crearResaltador();
+  
+    // Evento de movimiento del mouse
+      renderer.domElement.addEventListener('mousemove', (event) => {
+      const gridPos = getGridPositionFromClick(event);
+      
+      if (gridPos) {
+        // Calcular posición del resaltado
+        const gridOffsetX = -config.gridWidth / 2 ;
+        const gridOffsetZ = -config.gridDepth / 2;
+        
+        const posX = gridOffsetX + (gridPos.x * config.cellSizeX) + config.cellSizeX/2;
+        const posZ = gridOffsetZ + (gridPos.z * config.cellSizeZ) + config.cellSizeZ/2;
+        
+        // Posicionar y mostrar el resaltado
+        hoverHighlight.position.set(posX, 0.01, posZ); // Justo encima del piso
+        hoverHighlight.visible = true;
+        
+        // Cambiar color según el pasillo actual
+        hoverHighlight.material.color.setHex( 0x00ff00 );
+      } else {
+        hoverHighlight.visible = false;
+      }
+    });
+
+      // Evento de clic
+        renderer.domElement.addEventListener('click', (event) => {
+          const mouse = new THREE.Vector2(
+            (event.clientX / window.innerWidth) * 2 - 1,
+            -(event.clientY / window.innerHeight) * 2 + 1
+          );
+          
+          const raycaster = new THREE.Raycaster();
+          raycaster.setFromCamera(mouse, camera);
+          
+          // Comprobar solo las cajas visibles (del pasillo actual)
+          const visibleBoxes = boxes.filter(box => box.visible);
+          const intersects = raycaster.intersectObjects(visibleBoxes);
+
+             // Mostrar posición del clic (puedes comentar esto después)
+        const gridPos = getGridPositionFromClick(event);
+        if (gridPos) {
+            console.log(`Posición seleccionada - X: ${gridPos.x}, Z: ${gridPos.z}`);
+            // O mostrarlo en la UI si prefieres
+            // document.getElementById('modal-box-location').textContent = `X: ${gridPos.x}, Z: ${gridPos.z}`;
+        }
+          
+          if (intersects.length > 0) {
+            // La primera intersección es la caja más cercana
+            const clickedBox = intersects[0].object;
+            seleccionarCaja(clickedBox);
+          } else {
+            // Si se hace clic en un espacio vacío, no hacer nada
+            // o puedes deseleccionar si quieres: seleccionarCaja(null);
+          }
+        });
+        
+        // Cerrar modal al hacer clic en el botón
+      const closeModalBtn = document.getElementById('close-modal');
+      if (closeModalBtn) {
+        closeModalBtn.addEventListener('click', function() {
+          document.getElementById('box-modal').style.display = 'none';
+          document.getElementById('modal-overlay').style.display = 'none';
+          // También puedes deseleccionar la caja si lo deseas
+          if (selectedBox) {
+            selectedBox.material.emissive.setHex(0x000000);
+            selectedBox = null;
+          }
+        });
+      } else {
+        console.error("No se encontró el elemento con ID 'close-modal'");
+      }
+
+      
+      // Selector de pasillo
+      
+    
+      
+    
+    }
+
+   
+
+
+
+
+
+function calcularLimitesRacks() {
+    const racks = scene.children.filter(obj => obj.userData?.tipoObjeto === 'rack');
+    
+    if (racks.length === 0) {
+        return {
+            minX: -config.margenAlrededor * config.cellSizeX,
+            maxX: config.margenAlrededor * config.cellSizeX,
+            minZ: -config.margenAlrededor * config.cellSizeZ,
+            maxZ: config.margenAlrededor * config.cellSizeZ
+        };
+    }
+
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+
+    racks.forEach(rack => {
+        // Calcular límites del rack considerando su posición y dimensiones
+        const halfAncho = rack.userData.anchura / 2;
+        const halfProf = (config.cellSizeZ * (rack.userData.dobleCara ? 1.9 : 0.95)) / 2;
+        
+        const rackMinX = rack.position.x - halfAncho;
+        const rackMaxX = rack.position.x + halfAncho;
+        const rackMinZ = rack.position.z - halfProf;
+        const rackMaxZ = rack.position.z + halfProf;
+
+        minX = Math.min(minX, rackMinX);
+        maxX = Math.max(maxX, rackMaxX);
+        minZ = Math.min(minZ, rackMinZ);
+        maxZ = Math.max(maxZ, rackMaxZ);
+    });
+
+    // Aplicar margen en unidades reales (no en celdas)
+    const margenX = config.margenAlrededor * config.cellSizeX;
+    const margenZ = config.margenAlrededor * config.cellSizeZ;
+    
+    return {
+        minX: minX - margenX,
+        maxX: maxX + margenX,
+        minZ: minZ - margenZ,
+        maxZ: maxZ + margenZ
+    };
+}
+
+function createGrid() {
+    const limites = calcularLimitesRacks();
+    
+    // Asegurar que los límites sean múltiplos del tamaño de celda
+    const minX = Math.floor(limites.minX / config.cellSizeX) * config.cellSizeX;
+    const maxX = Math.ceil(limites.maxX / config.cellSizeX) * config.cellSizeX;
+    const minZ = Math.floor(limites.minZ / config.cellSizeZ) * config.cellSizeZ;
+    const maxZ = Math.ceil(limites.maxZ / config.cellSizeZ) * config.cellSizeZ;
+
+    // Verificar margen mínimo de 5 celdas
+    const anchoGrid = maxX - minX;
+    const profundidadGrid = maxZ - minZ;
+    const margenMinimo = 5 * config.cellSizeX;
+    
+    if (anchoGrid < margenMinimo * 2) {
+        const centroX = (minX + maxX) / 2;
+        minX = centroX - margenMinimo;
+        maxX = centroX + margenMinimo;
+    }
+    
+    if (profundidadGrid < margenMinimo * 2) {
+        const centroZ = (minZ + maxZ) / 2;
+        minZ = centroZ - margenMinimo;
+        maxZ = centroZ + margenMinimo;
+    }
+
+    // Eliminar grid anterior si existe
+    const oldGrid = scene.getObjectByName("grid");
+    if (oldGrid) scene.remove(oldGrid);
+
+    const grid = new THREE.Group();
+    grid.name = "grid";
+
+    // Crear plano base
+    const planoGeometry = new THREE.PlaneGeometry(maxX - minX, maxZ - minZ);
+    const planoMaterial = new THREE.MeshBasicMaterial({ 
+        color: 0xf5f5f5,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.8
+    });
+    const plano = new THREE.Mesh(planoGeometry, planoMaterial);
+    plano.rotation.x = -Math.PI / 2;
+    plano.position.set((minX + maxX) / 2, -0.02, (minZ + maxZ) / 2);
+    grid.add(plano);
+
+    // Crear líneas del grid
+    const widthDivisions = Math.round((maxX - minX) / config.cellSizeX);
+    const depthDivisions = Math.round((maxZ - minZ) / config.cellSizeZ);
+
+    // Líneas verticales
+    for (let i = 0; i <= widthDivisions; i++) {
+        const x = minX + i * config.cellSizeX;
+        const geometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(x, 0, minZ),
+            new THREE.Vector3(x, 0, maxZ)
+        ]);
+        const line = new THREE.Line(geometry, new THREE.LineBasicMaterial({
+            color: 0x777777,
+            transparent: true,
+            opacity: 0.5
+        }));
+        grid.add(line);
+    }
+
+    // Líneas horizontales
+    for (let i = 0; i <= depthDivisions; i++) {
+        const z = minZ + i * config.cellSizeZ;
+        const geometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(minX, 0, z),
+            new THREE.Vector3(maxX, 0, z)
+        ]);
+        const line = new THREE.Line(geometry, new THREE.LineBasicMaterial({
+            color: 0x777777,
+            transparent: true,
+            opacity: 0.5
+        }));
+        grid.add(line);
+    }
+
+    // Posicionar grid en la escena
+    grid.position.y = -0.01;
+    scene.add(grid);
+
+    // Ajustar cámara
+    const centerX = (minX + maxX) / 2;
+    const centerZ = (minZ + maxZ) / 2;
+    camera.position.set(centerX - 25, 40, centerZ + 45);
+    camera.lookAt(centerX, 5, centerZ);
+    controls.target.set(centerX, 3, centerZ);
+    controls.update();
+}
+
+function crearRack(posicionInicial, longitud, letraRack, niveles = 8, dobleCara = true) {
+    // Ajustar posiciones al grid
+    const posInicioX = config.primerRackX;
+    const posZ = posicionInicial.z;
+    
+    const rack = new THREE.Group();
+    rack.position.set(posInicioX, 0, posZ);
+    
+    const anchuraRack = config.cellSizeX * longitud;
+    const espacioEntreNiveles = config.alturaCaja + 0.2;
+    const alturaRack = espacioEntreNiveles * niveles;
+    const profundidadRack = config.cellSizeZ * (dobleCara ? 1.9 : 0.95);
+    
+    const halfAncho = anchuraRack / 2;
+    const halfProf = profundidadRack / 2;
+    
+    // Configuración de palets
+    const configPalets = {
+        ancho: 0.9,
+        separacion: 0.3,
+        margenSeccion: 0.3,
+        paletsPorSeccion: {
+            niveles0y1: 3,  // Primeros 2 niveles
+            otrosNiveles: 2  // Niveles superiores
+        }
+    };
+
+    // Crear estructura base (postes)
+    const numeroSecciones = Math.floor(longitud / 4);
+    const anchoSeccion = anchuraRack / numeroSecciones;
+    
+    for (let seccion = 0; seccion <= numeroSecciones; seccion++) {
+        const xPos = -halfAncho + (seccion * anchoSeccion);
+        
+        // Postes frontales y traseros
+        const posteGeometry = new THREE.BoxGeometry(0.15, alturaRack, 0.15);
+        const posteMaterial = new THREE.MeshBasicMaterial({ color: 0x1a5fb4 });
+        
+        const posteFrontal = new THREE.Mesh(posteGeometry, posteMaterial);
+        posteFrontal.position.set(xPos, alturaRack/2, -halfProf);
+        rack.add(posteFrontal);
+        
+        if (dobleCara) {
+            const posteTrasero = new THREE.Mesh(posteGeometry, posteMaterial);
+            posteTrasero.position.set(xPos, alturaRack/2, halfProf);
+            rack.add(posteTrasero);
+        }
+    }
+
+    // Crear niveles
+    const travesanoMaterial = new THREE.MeshBasicMaterial({ color: 0xe95420 });
+
+    for (let nivel = 0; nivel < niveles; nivel++)  {
+        const alturaActual = nivel * espacioEntreNiveles;
+        
+        // Travesaños (siempre presentes)
+        const travesanoGeometry = new THREE.BoxGeometry(anchuraRack + 0.1, 0.08, 0.08);
+        const travesanoFrontal = new THREE.Mesh(travesanoGeometry, travesanoMaterial);
+        travesanoFrontal.position.set(0, alturaActual, -halfProf);
+        rack.add(travesanoFrontal);
+        
+        if (dobleCara) {
+            const travesanoTrasero = new THREE.Mesh(travesanoGeometry, travesanoMaterial);
+            travesanoTrasero.position.set(0, alturaActual, halfProf);
+            rack.add(travesanoTrasero);
+        }
+        
+        // Configurar palets según el nivel
+        const paletsPorSeccion = nivel < 2 ? configPalets.paletsPorSeccion.niveles0y1 
+                                         : configPalets.paletsPorSeccion.otrosNiveles;
+        
+        // Colocar palets en cada sección
+        for (let seccion = 0; seccion < numeroSecciones; seccion++) {
+            const inicioSeccion = -halfAncho + (seccion * anchoSeccion);
+            const anchoUtilSeccion = anchoSeccion - (2 * configPalets.margenSeccion);
+            
+            // Calcular espacio necesario
+            const espacioNecesario = (paletsPorSeccion * configPalets.ancho) + 
+                                   ((paletsPorSeccion - 1) * configPalets.separacion);
+            
+            if (espacioNecesario > anchoUtilSeccion) {
+                console.warn(`No caben ${paletsPorSeccion} palets en sección ${seccion}`);
+                continue;
+            }
+            
+            // Calcular posiciones
+            const posInicial = inicioSeccion + configPalets.margenSeccion + 
+                             ((anchoUtilSeccion - espacioNecesario) / 2);
+            
+            for (let i = 0; i < paletsPorSeccion; i++) {
+                const posX = posInicial + (i * (configPalets.ancho + configPalets.separacion)) + 
+                            (configPalets.ancho / 2);
+                
+                // Palet frontal
+                crearPaletMejorado(rack, posX, alturaActual, -halfProf + 0.2, configPalets.ancho);
+                
+                // Palet trasero si es doble cara
+                if (dobleCara) {
+                    crearPaletMejorado(rack, posX, alturaActual, halfProf - 0.2, configPalets.ancho);
+                }
+            }
+        }
+    }
+    
+    // Etiqueta y metadatos
+    crearEtiquetaRack(rack, letraRack, anchuraRack, alturaRack, halfProf);
+    
+    rack.userData = {
+        tipoObjeto: 'rack',
+        letra: letraRack,
+        anchura: anchuraRack,
+        secciones: numeroSecciones,
+        paletsPorNivel: {
+            '0-1': configPalets.paletsPorSeccion.niveles0y1,
+            '2+': configPalets.paletsPorSeccion.otrosNiveles
+        },
+        orientacion: 'horizontal'
+    };
+    
+    scene.add(rack);
+    return rack;
+}
+
+
+function crearEtiquetaRack(rack, letraRack, anchuraRack, alturaRack, profundidad) {
+    // Crear canvas para generar la imagen del texto
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+
+    // Tamaño del canvas (ajustable según calidad deseada)
+    canvas.width = 1024;   // Ancho total
+    canvas.height = 256;   // Alto total
+
+    // === Dibujar borde negro ===
+    const padding = 40; // Grosor del borde negro externo
+    const innerPadding = 20; // Espacio entre texto y fondo blanco
+
+    // Fondo negro (borde exterior)
+    context.fillStyle = '#000000';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Fondo blanco (interior)
+    context.fillStyle = '#FFFFFF';
+    context.fillRect(
+        padding,
+        padding,
+        canvas.width - padding * 2,
+        canvas.height - padding * 2
+    );
+
+    // Estilo del texto
+    context.font = 'bold 96px Arial';
+    context.fillStyle = '#000000'; // Negro sobre fondo blanco
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+
+    // Posición centrada dentro del área blanca
+    const textoX = canvas.width / 2;
+    const textoY = canvas.height / 2;
+    context.fillText(`RACK ${letraRack}`, textoX, textoY);
+
+    // Convertimos el canvas en textura
+    const texture = new THREE.CanvasTexture(canvas);
+
+    // Configurar filtros para evitar pixelado o borrosidad
+    texture.wrapS = THREE.ClampToEdgeWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+
+    // Geometría del plano que contendrá la etiqueta
+    const placaAncho = 2.0;   // En unidades de Three.js
+    const placaAlto = 0.6;    // Proporcional al ancho
+
+    const placaGeometry = new THREE.PlaneGeometry(placaAncho, placaAlto);
+    const placaMaterial = new THREE.MeshBasicMaterial({ map: texture });
+    const placa = new THREE.Mesh(placaGeometry, placaMaterial);
+
+    // Rotamos la placa 90° sobre el eje Y para que mire hacia el costado del rack
+    placa.rotation.y = -Math.PI / 2;
+
+    // Posicionamos la placa encima del rack
+    placa.position.set(-anchuraRack / 2 - 0.1, alturaRack + 0.4, 0);
+
+    // Añadimos al rack
+    rack.add(placa);
+}
+// Función para crear un palet con aspecto mejorado pero optimizado
+function crearPaletMejorado(rack, offsetX, altura, offsetZ, anchoPalet) {
+  const paletColor = 0x8a5700; // Marrón para los palets
+  const paletGeometry = new THREE.BoxGeometry(anchoPalet - 0.1, 0.12, config.cellSizeZ * 0.85);
+  const paletMaterial = new THREE.MeshBasicMaterial({ color: paletColor });
+  
+  const palet = new THREE.Mesh(paletGeometry, paletMaterial);
+  palet.position.set(offsetX, altura + 0.06, offsetZ); // Colocado encima del travesaño
+  
+  // Añadir solo 3 líneas para simular tablas del palet (reducido de 5)
+  const lineaMaterial = new THREE.LineBasicMaterial({ color: 0x5c3d1a });
+  
+  for (let i = -1; i <= 1; i++) {
+    const lineaGeometry = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(anchoPalet/2 * 0.8 * i, 0.061, -config.cellSizeZ * 0.4),
+      new THREE.Vector3(anchoPalet/2 * 0.8 * i, 0.061, config.cellSizeZ * 0.4)
+    ]);
+    const linea = new THREE.Line(lineaGeometry, lineaMaterial);
+    palet.add(linea);
+  }
+  
+  rack.add(palet);
+  return palet;
+}
+
+// Función actualizada para crear cruces de refuerzo con desplazamiento personalizado
+function crearCrucesRefuerzoSimple(rack, anchuraSeccion, alturaRack, profundidad, offsetX = 0) {
+    const cruzColor = 0xc0c0c0; // Plateado para las cruces
+    const cruzMaterial = new THREE.LineBasicMaterial({ color: cruzColor });
+    
+    // Cruz trasera
+    const cruzTraseraGeometry = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(offsetX - anchuraSeccion/2, 0, profundidad),
+        new THREE.Vector3(offsetX + anchuraSeccion/2, alturaRack/2, profundidad),
+        
+        new THREE.Vector3(offsetX + anchuraSeccion/2, alturaRack/2, profundidad),
+        new THREE.Vector3(offsetX + anchuraSeccion/2, 0, profundidad),
+        
+        new THREE.Vector3(offsetX + anchuraSeccion/2, 0, profundidad),
+        new THREE.Vector3(offsetX - anchuraSeccion/2, alturaRack/2, profundidad),
+        
+        new THREE.Vector3(offsetX - anchuraSeccion/2, alturaRack/2, profundidad),
+        new THREE.Vector3(offsetX - anchuraSeccion/2, 0, profundidad)
+    ]);
+    
+    const cruzTrasera = new THREE.LineSegments(cruzTraseraGeometry, cruzMaterial);
+    rack.add(cruzTrasera);
+    
+    // Cruz frontal opcional para mayor solidez visual
+    const cruzFrontalGeometry = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(offsetX - anchuraSeccion/2, 0, -profundidad),
+        new THREE.Vector3(offsetX + anchuraSeccion/2, alturaRack/2, -profundidad),
+        
+        new THREE.Vector3(offsetX + anchuraSeccion/2, alturaRack/2, -profundidad),
+        new THREE.Vector3(offsetX + anchuraSeccion/2, 0, -profundidad),
+        
+        new THREE.Vector3(offsetX + anchuraSeccion/2, 0, -profundidad),
+        new THREE.Vector3(offsetX - anchuraSeccion/2, alturaRack/2, -profundidad),
+        
+        new THREE.Vector3(offsetX - anchuraSeccion/2, alturaRack/2, -profundidad),
+        new THREE.Vector3(offsetX - anchuraSeccion/2, 0, -profundidad)
+    ]);
+    
+    const cruzFrontal = new THREE.LineSegments(cruzFrontalGeometry, cruzMaterial);
+    rack.add(cruzFrontal);
+}
+
+// 6. Modifica la función que inicializa los racks para usar el nuevo sistema
+// Modificación para inicializar racks con mejor orientación
+function inicializarRacks() {
+    // Definición de racks como filas con sus posiciones y longitudes
+    const distanciaEntreRacks = 3; // Separación de 3 cuadros entre racks
+    let posicionZActual = config.margenAlrededor; // Comenzar con el margen
+    
+    const racks = [
+        // Racks superiores (A-E)
+        { posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 20, letra: 'A', dobleCara: true },
+    ];
+    
+    // Actualizar posición para el rack B
+    posicionZActual += 5 + distanciaEntreRacks;
+    racks.push({ posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 20, letra: 'B', dobleCara: true });
+    
+    // Actualizar posición para el rack C
+    posicionZActual += 5 + distanciaEntreRacks;
+    racks.push({ posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 20, letra: 'C', dobleCara: true });
+    
+    // Actualizar posición para el rack D
+    posicionZActual += 5 + distanciaEntreRacks;
+    racks.push({ posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 20, letra: 'D', dobleCara: true });
+    
+    // Actualizar posición para el rack E
+    posicionZActual += 5 + distanciaEntreRacks;
+    racks.push({ posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 20, letra: 'E', dobleCara: true });
+    
+    // Separación extra entre E y F
+    posicionZActual += 5 + distanciaEntreRacks + 5;
+    
+    // Racks inferiores (F-J)
+    racks.push({ posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 20, letra: 'F', dobleCara: true });
+    
+    // Actualizar posición para el rack G
+    posicionZActual += 5 + distanciaEntreRacks;
+    racks.push({ posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 20, letra: 'G', dobleCara: true });
+    
+    // Actualizar posición para el rack H
+    posicionZActual += 5 + distanciaEntreRacks;
+    racks.push({ posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 20, letra: 'H', dobleCara: true });
+    
+    // Actualizar posición para el rack I
+    posicionZActual += 5 + distanciaEntreRacks;
+    racks.push({ posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 20, letra: 'I', dobleCara: true });
+    
+    // Actualizar posición para el rack J
+    posicionZActual += 5 + distanciaEntreRacks;
+    racks.push({ posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 20, letra: 'J', dobleCara: true });
+    
+    
+    // Crear cada rack
+    racks.forEach((rackInfo) => {
+        crearRack(
+            rackInfo.posInicio,
+            rackInfo.longitud, 
+            rackInfo.letra,
+            8, // niveles
+            rackInfo.dobleCara
+        );
+    });
+}
+// Variable global para contar frames
+let frameCount = 0;
+
+
+// Optimización para el renderizado - mantener esto como estaba
+function init() {
+    actualizarConfiguracion();
+    inicializarRacks(); // Primero crea los racks
+    createGrid();
+    
+    // Optimizar el renderer pero mantener buena calidad
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+    
+    // Limitar la cantidad de datos iniciales, pero no demasiado
+    if (typeof initialData !== 'undefined') {
+        const dataReducida = initialData.slice(0, Math.min(initialData.length, 15));
+        dataReducida.forEach(col => crearColumna(col));
+    }
+    
+    inicializarRacks();
+    
+    if (typeof setupInteraccion === 'function') {
+        setupInteraccion();
+    }
+    
+    // Event listener con debounce para evitar demasiadas actualizaciones
+    window.addEventListener('resize', _.debounce(() => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }, 250));
+    
+    // Iniciar animación con contador de frames
+    frameCount = 0;
+    animate();
+}
+
+// Función de animación optimizada
+function animate() {
+  requestAnimationFrame(animate);
+  
+  // Optimizar actualizaciones de controles
+  if (frameCount % 2 === 0) {
+    controls.update();
+  }
+  
+  renderer.render(scene, camera);
+  frameCount++;
+}
+
+// Función para colocar una caja en una posición específica de un rack en fila
+function colocarCajaEnRack(caja, rackLetra, posicionX, nivel, caraFrontal = true) {
+    // Encuentra el rack por su letra
+    const racks = scene.children.filter(obj => 
+        obj.userData && obj.userData.tipoObjeto === 'rack' && obj.userData.letra === rackLetra);
+    
+    if (racks.length === 0) return false;
+    
+    const rack = racks[0];
+    const anchuraRack = rack.userData.anchura;
+    const mitadAnchura = anchuraRack / 2;
+    
+    // Calcular posición dentro del rack
+    const posX = -mitadAnchura + posicionX;
+    const posY = nivel * (config.alturaCaja + 0.2);
+    const posZ = caraFrontal ? -config.cellSizeZ : config.cellSizeZ;
+    
+    // Colocar la caja
+    caja.position.set(posX, posY, posZ);
+    rack.add(caja);
+    
+    return true;
+}
+
+    init();
+  </script>
+</body>
+</html>
