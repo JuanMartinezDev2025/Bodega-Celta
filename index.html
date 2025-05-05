@@ -369,9 +369,18 @@
     
     // 1. PRIMERO DECLARAR LAS VARIABLES PRINCIPALES DE THREE.JS
     const scene = new THREE.Scene(); //Crear escena
-    const renderer = new THREE.WebGLRenderer({ antialias: true }); // Crear renderizador anti pixelado
+  // Añadir estas configuraciones al inicializar el renderer
+  const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      powerPreference: "high-performance"
+  });
+  renderer.autoClear = false;
+  renderer.shadowMap.enabled = false;
+  
     const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000); // Crear vista de camara, zoom y perspectiva, relacion aspecto para que la camara se adapte dinamicamente, cuanto me puedo acercar y alejar
-    
+    // OPTIMIZACIÓN: Configurar frustum culling reduciendo el "far" de la cámara 
+    camera.far = 350;
+    camera.updateProjectionMatrix(); // Actualizar la matriz de proyección después de cambiar el "far"
     // 2. CONFIGURACIÓN INICIAL
     scene.background = new THREE.Color(0xf0f0f0); // Color gris claro de fondo
     renderer.setSize(window.innerWidth, window.innerHeight); // Tamaño del renderizador que se adapta a la pantalla
@@ -404,14 +413,13 @@
 
  let config = {}
  
-function actualizarConfiguracion() {
-
+ function actualizarConfiguracion() {
     config = {
-        gridWidth: 70,              // Mayor ancho para acomodar los racks con margen
-        gridDepth: 70,              // Mayor profundidad para el margen
+        gridWidth: 110,             // Mayor ancho para acomodar los racks más largos
+        gridDepth: 70,              // Mantener profundidad actual
         columnWidth: 1,
-        widthDivisions: 70,         // Más divisiones para mayor precisión
-        depthDivisions: 70,         // Más divisiones para mayor precisión
+        widthDivisions: 110,        // Más divisiones para el grid más ancho
+        depthDivisions: 70,         // Mantener divisiones de profundidad
         alturaCaja: 0.8,
         espacioVertical: 0.1,
         anchoCaja: 0.8,
@@ -419,9 +427,9 @@ function actualizarConfiguracion() {
         // Parámetros para racks
         numeroRacks: 10,            // A-J son 10 racks
         rackColor: 0x2196F3,
-        primerRackX: 15,            // Posición X del primer rack (aumentada para margen)
+        primerRackX: 15,            // Posición X del primer rack
         distanciaEntreRacks: 5,     // Espaciado entre racks
-        margenAlrededor: 5          // Margen alrededor de todos los racks (en unidades de celda)
+        margenAlrededor: 5          // Margen alrededor de todos los racks
     };
     calcularTamanosCeldas();
 }
@@ -664,23 +672,7 @@ function agregarCaja(columnaData, indexCaja, posX, posZ) {
 }
    
 
-    function crearResaltador() {
-      const geometria = new THREE.BoxGeometry(
-        config.cellSizeX * 0.95, // Ancho (95% del tamaño de celda)
-        0.02,                   // Altura (muy delgado)
-        config.cellSizeZ * 0.95  // Profundidad (95% del tamaño de celda)
-      );
-      const material = new THREE.MeshBasicMaterial({
-        color: 0x00ff00,        // Color verde brillante
-        transparent: true,
-        opacity: 0.5,
-        wireframe: false
-      });
-      
-      hoverHighlight = new THREE.Mesh(geometria, material);
-      hoverHighlight.visible = false;
-      scene.add(hoverHighlight);
-    }
+
 
     // Si hay una función para reconstruir columnas, también la actualizamos
 function reconstruirColumna(columna) {
@@ -830,162 +822,132 @@ function mostrarModalCaja(caja) {
       return null;
     }
 
-    // 9. Interacción
     function setupInteraccion() {
-      crearResaltador();
-  
-    // Evento de movimiento del mouse
-      renderer.domElement.addEventListener('mousemove', (event) => {
+    // 1. Variables para optimización
+    let lastMouseMove = 0;
+    const mouseMoveThrottle = 50; // ms (más fluido que 100ms pero aún optimizado)
+    const raycaster = new THREE.Raycaster(); // Reutilizar la misma instancia
+    const mouse = new THREE.Vector2(); // Reutilizar este vector
+
+    // 2. Evento de movimiento del mouse (optimizado con throttle)
+    renderer.domElement.addEventListener('mousemove', _.throttle((event) => {
+      const now = Date.now();
+      if (now - lastMouseMove < mouseMoveThrottle) return;
+      lastMouseMove = now;
+      
       const gridPos = getGridPositionFromClick(event);
       
       if (gridPos) {
-        // Calcular posición del resaltado
-        const gridOffsetX = -config.gridWidth / 2 ;
+        // Calcular posición del resaltado (código optimizado)
+        const gridOffsetX = -config.gridWidth / 2;
         const gridOffsetZ = -config.gridDepth / 2;
-        
         const posX = gridOffsetX + (gridPos.x * config.cellSizeX) + config.cellSizeX/2;
         const posZ = gridOffsetZ + (gridPos.z * config.cellSizeZ) + config.cellSizeZ/2;
         
-        // Posicionar y mostrar el resaltado
-        hoverHighlight.position.set(posX, 0.01, posZ); // Justo encima del piso
-        hoverHighlight.visible = true;
-        
-        // Cambiar color según el pasillo actual
-        hoverHighlight.material.color.setHex( 0x00ff00 );
-      } else {
+        // Actualizar posición (evitando operaciones innecesarias)
+        if (!hoverHighlight.visible || 
+          hoverHighlight.position.x !== posX || 
+          hoverHighlight.position.z !== posZ) {
+          hoverHighlight.position.set(posX, 0.01, posZ);
+          hoverHighlight.visible = true;
+        }
+      } else if (hoverHighlight.visible) {
         hoverHighlight.visible = false;
       }
+      
+      needsRender = true;
+    }, mouseMoveThrottle));
+
+    // 3. Evento de clic (optimizado)
+    renderer.domElement.addEventListener('click', (event) => {
+      // Reutilizar el vector mouse
+      mouse.set(
+        (event.clientX / window.innerWidth) * 2 - 1,
+        -(event.clientY / window.innerHeight) * 2 + 1
+      );
+      
+      raycaster.setFromCamera(mouse, camera);
+      
+      // Usar un array reutilizable para las intersecciones
+      const intersects = raycaster.intersectObjects(boxes.filter(box => box.visible), true);
+      
+      // Debug de posición (opcional)
+      const gridPos = getGridPositionFromClick(event);
+      if (gridPos && debugMode) {
+        console.log(`Posición seleccionada - X: ${gridPos.x}, Z: ${gridPos.z}`);
+      }
+      
+      if (intersects.length > 0) {
+        seleccionarCaja(intersects[0].object);
+      }
+      // Nota: Eliminé el else ya que no hacía nada
     });
-
-      // Evento de clic
-        renderer.domElement.addEventListener('click', (event) => {
-          const mouse = new THREE.Vector2(
-            (event.clientX / window.innerWidth) * 2 - 1,
-            -(event.clientY / window.innerHeight) * 2 + 1
-          );
-          
-          const raycaster = new THREE.Raycaster();
-          raycaster.setFromCamera(mouse, camera);
-          
-          // Comprobar solo las cajas visibles (del pasillo actual)
-          const visibleBoxes = boxes.filter(box => box.visible);
-          const intersects = raycaster.intersectObjects(visibleBoxes);
-
-             // Mostrar posición del clic (puedes comentar esto después)
-        const gridPos = getGridPositionFromClick(event);
-        if (gridPos) {
-            console.log(`Posición seleccionada - X: ${gridPos.x}, Z: ${gridPos.z}`);
-            // O mostrarlo en la UI si prefieres
-            // document.getElementById('modal-box-location').textContent = `X: ${gridPos.x}, Z: ${gridPos.z}`;
-        }
-          
-          if (intersects.length > 0) {
-            // La primera intersección es la caja más cercana
-            const clickedBox = intersects[0].object;
-            seleccionarCaja(clickedBox);
-          } else {
-            // Si se hace clic en un espacio vacío, no hacer nada
-            // o puedes deseleccionar si quieres: seleccionarCaja(null);
-          }
-        });
+    
+    // 4. Cerrar modal (optimizado con delegación de eventos)
+    document.body.addEventListener('click', (event) => {
+      if (event.target.id === 'close-modal') {
+        const modal = document.getElementById('box-modal');
+        const overlay = document.getElementById('modal-overlay');
         
-        // Cerrar modal al hacer clic en el botón
-      const closeModalBtn = document.getElementById('close-modal');
-      if (closeModalBtn) {
-        closeModalBtn.addEventListener('click', function() {
-          document.getElementById('box-modal').style.display = 'none';
-          document.getElementById('modal-overlay').style.display = 'none';
-          // También puedes deseleccionar la caja si lo deseas
+        if (modal && overlay) {
+          modal.style.display = 'none';
+          overlay.style.display = 'none';
+          
           if (selectedBox) {
             selectedBox.material.emissive.setHex(0x000000);
             selectedBox = null;
           }
-        });
-      } else {
-        console.error("No se encontró el elemento con ID 'close-modal'");
+        } else {
+          console.error("Elementos del modal no encontrados");
+        }
       }
-
-      
-      // Selector de pasillo
-      
-    
-      
-    
-    }
-
-   
+    });
+  }
 
 
 
 
-
-function calcularLimitesRacks() {
+  function calcularLimitesRacks() {
     const racks = scene.children.filter(obj => obj.userData?.tipoObjeto === 'rack');
     
     if (racks.length === 0) {
-        return {
-            minX: -config.margenAlrededor * config.cellSizeX,
-            maxX: config.margenAlrededor * config.cellSizeX,
-            minZ: -config.margenAlrededor * config.cellSizeZ,
-            maxZ: config.margenAlrededor * config.cellSizeZ
-        };
+        return { minX: -5, maxX: 5, minZ: -5, maxZ: 5 }; // valores por defecto
     }
 
-    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    let minX = Infinity, maxX = -Infinity;
+    let minZ = Infinity, maxZ = -Infinity;
 
-    racks.forEach(rack => {
-        // Calcular límites del rack considerando su posición y dimensiones
-        const halfAncho = rack.userData.anchura / 2;
-        const halfProf = (config.cellSizeZ * (rack.userData.dobleCara ? 1.9 : 0.95)) / 2;
-        
-        const rackMinX = rack.position.x - halfAncho;
-        const rackMaxX = rack.position.x + halfAncho;
-        const rackMinZ = rack.position.z - halfProf;
-        const rackMaxZ = rack.position.z + halfProf;
+    const box = new THREE.Box3();
 
-        minX = Math.min(minX, rackMinX);
-        maxX = Math.max(maxX, rackMaxX);
-        minZ = Math.min(minZ, rackMinZ);
-        maxZ = Math.max(maxZ, rackMaxZ);
-    });
+    for (const rack of racks) {
+        box.setFromObject(rack);
+        const min = box.min;
+        const max = box.max;
 
-    // Aplicar margen en unidades reales (no en celdas)
-    const margenX = config.margenAlrededor * config.cellSizeX;
-    const margenZ = config.margenAlrededor * config.cellSizeZ;
-    
-    return {
-        minX: minX - margenX,
-        maxX: maxX + margenX,
-        minZ: minZ - margenZ,
-        maxZ: maxZ + margenZ
-    };
+        if (min.x < minX) minX = min.x;
+        if (max.x > maxX) maxX = max.x;
+        if (min.z < minZ) minZ = min.z;
+        if (max.z > maxZ) maxZ = max.z;
+    }
+
+    return { minX, maxX, minZ, maxZ };
 }
 
 function createGrid() {
     const limites = calcularLimitesRacks();
-    
-    // Asegurar que los límites sean múltiplos del tamaño de celda
-    const minX = Math.floor(limites.minX / config.cellSizeX) * config.cellSizeX;
-    const maxX = Math.ceil(limites.maxX / config.cellSizeX) * config.cellSizeX;
-    const minZ = Math.floor(limites.minZ / config.cellSizeZ) * config.cellSizeZ;
-    const maxZ = Math.ceil(limites.maxZ / config.cellSizeZ) * config.cellSizeZ;
 
-    // Verificar margen mínimo de 5 celdas
-    const anchoGrid = maxX - minX;
-    const profundidadGrid = maxZ - minZ;
-    const margenMinimo = 5 * config.cellSizeX;
-    
-    if (anchoGrid < margenMinimo * 2) {
-        const centroX = (minX + maxX) / 2;
-        minX = centroX - margenMinimo;
-        maxX = centroX + margenMinimo;
-    }
-    
-    if (profundidadGrid < margenMinimo * 2) {
-        const centroZ = (minZ + maxZ) / 2;
-        minZ = centroZ - margenMinimo;
-        maxZ = centroZ + margenMinimo;
-    }
+    // 🔹 Asegurar que los límites sean múltiplos del tamaño de celda
+    let minX = Math.floor(limites.minX / config.cellSizeX) * config.cellSizeX;
+    let maxX = Math.ceil(limites.maxX / config.cellSizeX) * config.cellSizeX;
+    let minZ = Math.floor(limites.minZ / config.cellSizeZ) * config.cellSizeZ;
+    let maxZ = Math.ceil(limites.maxZ / config.cellSizeZ) * config.cellSizeZ;
+
+    // 🔹 Agregar margen configurable alrededor del grid
+    const margenCeldas = 5;
+    minX -= margenCeldas * config.cellSizeX;
+    maxX += margenCeldas * config.cellSizeX;
+    minZ -= margenCeldas * config.cellSizeZ;
+    maxZ += margenCeldas * config.cellSizeZ;
 
     // Eliminar grid anterior si existe
     const oldGrid = scene.getObjectByName("grid");
@@ -994,7 +956,7 @@ function createGrid() {
     const grid = new THREE.Group();
     grid.name = "grid";
 
-    // Crear plano base
+    // 🔹 1. Plano base
     const planoGeometry = new THREE.PlaneGeometry(maxX - minX, maxZ - minZ);
     const planoMaterial = new THREE.MeshBasicMaterial({ 
         color: 0xf5f5f5,
@@ -1007,54 +969,71 @@ function createGrid() {
     plano.position.set((minX + maxX) / 2, -0.02, (minZ + maxZ) / 2);
     grid.add(plano);
 
-    // Crear líneas del grid
+    // 🔹 2. Crear líneas del grid
     const widthDivisions = Math.round((maxX - minX) / config.cellSizeX);
     const depthDivisions = Math.round((maxZ - minZ) / config.cellSizeZ);
 
-    // Líneas verticales
+    const linePositions = [];
+    const lineColors = [];
+    const color = new THREE.Color(0x777777);
+
     for (let i = 0; i <= widthDivisions; i++) {
         const x = minX + i * config.cellSizeX;
-        const geometry = new THREE.BufferGeometry().setFromPoints([
-            new THREE.Vector3(x, 0, minZ),
-            new THREE.Vector3(x, 0, maxZ)
-        ]);
-        const line = new THREE.Line(geometry, new THREE.LineBasicMaterial({
-            color: 0x777777,
-            transparent: true,
-            opacity: 0.5
-        }));
-        grid.add(line);
+        linePositions.push(x, 0, minZ, x, 0, maxZ);
+        lineColors.push(color.r, color.g, color.b, color.r, color.g, color.b);
     }
 
-    // Líneas horizontales
     for (let i = 0; i <= depthDivisions; i++) {
         const z = minZ + i * config.cellSizeZ;
-        const geometry = new THREE.BufferGeometry().setFromPoints([
-            new THREE.Vector3(minX, 0, z),
-            new THREE.Vector3(maxX, 0, z)
-        ]);
-        const line = new THREE.Line(geometry, new THREE.LineBasicMaterial({
-            color: 0x777777,
-            transparent: true,
-            opacity: 0.5
-        }));
-        grid.add(line);
+        linePositions.push(minX, 0, z, maxX, 0, z);
+        lineColors.push(color.r, color.g, color.b, color.r, color.g, color.b);
     }
 
-    // Posicionar grid en la escena
+    const lineGeometry = new THREE.BufferGeometry();
+    lineGeometry.setAttribute('position', new THREE.Float32BufferAttribute(linePositions, 3));
+    lineGeometry.setAttribute('color', new THREE.Float32BufferAttribute(lineColors, 3));
+
+    const lineMaterial = new THREE.LineBasicMaterial({
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.5
+    });
+
+    const gridLines = new THREE.LineSegments(lineGeometry, lineMaterial);
+    grid.add(gridLines);
+
     grid.position.y = -0.01;
     scene.add(grid);
 
-    // Ajustar cámara
+    // 🔹 Ajustar cámara para encuadrar el área
     const centerX = (minX + maxX) / 2;
     const centerZ = (minZ + maxZ) / 2;
-    camera.position.set(centerX - 25, 40, centerZ + 45);
+
+    camera.position.set(centerX - 35, 50, centerZ + 55);
     camera.lookAt(centerX, 5, centerZ);
     controls.target.set(centerX, 3, centerZ);
     controls.update();
 }
 
-function crearRack(posicionInicial, longitud, letraRack, niveles = 8, dobleCara = true) {
+function calcularAnchoSeccion(paletsPorSeccion, anchoPalet, separacion, margen) {
+    return (2 * margen) + (paletsPorSeccion * anchoPalet) + ((paletsPorSeccion - 1) * separacion);
+}
+
+
+// Crear materiales compartidos al inicio
+const sharedMaterials = {
+    rackPost: new THREE.MeshBasicMaterial({ color: 0x1a5fb4 }),
+    rackBeam: new THREE.MeshBasicMaterial({ color: 0xe95420 }),
+    crossBeam: new THREE.LineBasicMaterial({ color: 0xc0c0c0 })
+};
+
+// 2. Geometrías COMPARTIDAS
+const sharedGeometries = {
+    post: new THREE.BoxGeometry(0.15, 1, 0.15), // Altura será escalada
+    beam: new THREE.BoxGeometry(1, 0.08, 0.08)  // Longitud será escalada
+};
+
+function crearRack(posicionInicial, longitud, letraRack, niveles = 8, dobleCara = true, numeroSecciones = null){
     // Ajustar posiciones al grid
     const posInicioX = config.primerRackX;
     const posZ = posicionInicial.z;
@@ -1065,12 +1044,12 @@ function crearRack(posicionInicial, longitud, letraRack, niveles = 8, dobleCara 
     const anchuraRack = config.cellSizeX * longitud;
     const espacioEntreNiveles = config.alturaCaja + 0.2;
     const alturaRack = espacioEntreNiveles * niveles;
-    const profundidadRack = config.cellSizeZ * (dobleCara ? 1.9 : 0.95);
     
-    const halfAncho = anchuraRack / 2;
+    // CAMBIO: Ajustar profundidad para racks de una cara
+    const profundidadRack = config.cellSizeZ * (dobleCara ? 1.9 : 0.95);
     const halfProf = profundidadRack / 2;
     
-    // Configuración de palets
+    // Configuración fija de palets
     const configPalets = {
         ancho: 0.9,
         separacion: 0.3,
@@ -1081,85 +1060,131 @@ function crearRack(posicionInicial, longitud, letraRack, niveles = 8, dobleCara 
         }
     };
 
-    // Crear estructura base (postes)
-    const numeroSecciones = Math.floor(longitud / 4);
-    const anchoSeccion = anchuraRack / numeroSecciones;
+    const anchoSeccion = calcularAnchoSeccion(
+        configPalets.paletsPorSeccion.niveles0y1,
+        configPalets.ancho,
+        configPalets.separacion,
+        configPalets.margenSeccion
+    );
+
+    if (!numeroSecciones) {
+        numeroSecciones = Math.floor(anchuraRack / anchoSeccion);
+    }
+
     
+    const anchuraRackAjustada = numeroSecciones * anchoSeccion;
+    const halfAncho = anchuraRackAjustada / 2;
+
+    console.log(`Creando rack con ${numeroSecciones} secciones de ancho ${anchoSeccion}`);
+    
+    // PASO 2: Crear estructura base (postes en cada división de sección)
     for (let seccion = 0; seccion <= numeroSecciones; seccion++) {
         const xPos = -halfAncho + (seccion * anchoSeccion);
         
-        // Postes frontales y traseros
-        const posteGeometry = new THREE.BoxGeometry(0.15, alturaRack, 0.15);
-        const posteMaterial = new THREE.MeshBasicMaterial({ color: 0x1a5fb4 });
-        
-        const posteFrontal = new THREE.Mesh(posteGeometry, posteMaterial);
+        // Poste frontal (usando recursos compartidos)
+        const posteFrontal = new THREE.Mesh(sharedGeometries.post, sharedMaterials.rackPost);
+        posteFrontal.scale.set(1, alturaRack, 1); // Escalar altura
         posteFrontal.position.set(xPos, alturaRack/2, -halfProf);
         rack.add(posteFrontal);
         
+        // Postes traseros solo si es doble cara
         if (dobleCara) {
-            const posteTrasero = new THREE.Mesh(posteGeometry, posteMaterial);
+            const posteTrasero = new THREE.Mesh(sharedGeometries.post, sharedMaterials.rackPost);
+            posteTrasero.scale.set(1, alturaRack, 1);
             posteTrasero.position.set(xPos, alturaRack/2, halfProf);
             rack.add(posteTrasero);
         }
     }
 
-    // Crear niveles
-    const travesanoMaterial = new THREE.MeshBasicMaterial({ color: 0xe95420 });
-
-    for (let nivel = 0; nivel < niveles; nivel++)  {
+    // PASO 3: Travesaños horizontales (optimizados)
+    for (let nivel = 0; nivel < niveles; nivel++) {
         const alturaActual = nivel * espacioEntreNiveles;
         
-        // Travesaños (siempre presentes)
-        const travesanoGeometry = new THREE.BoxGeometry(anchuraRack + 0.1, 0.08, 0.08);
-        const travesanoFrontal = new THREE.Mesh(travesanoGeometry, travesanoMaterial);
+        // Travesaño frontal
+        const travesanoFrontal = new THREE.Mesh(sharedGeometries.beam, sharedMaterials.rackBeam);
+        travesanoFrontal.scale.set(anchuraRackAjustada + 0.1, 1, 1);
         travesanoFrontal.position.set(0, alturaActual, -halfProf);
         rack.add(travesanoFrontal);
         
         if (dobleCara) {
-            const travesanoTrasero = new THREE.Mesh(travesanoGeometry, travesanoMaterial);
+            const travesanoTrasero = new THREE.Mesh(sharedGeometries.beam, sharedMaterials.rackBeam);
+            travesanoTrasero.scale.set(anchuraRackAjustada + 0.1, 1, 1);
             travesanoTrasero.position.set(0, alturaActual, halfProf);
             rack.add(travesanoTrasero);
         }
         
-        // Configurar palets según el nivel
-        const paletsPorSeccion = nivel < 2 ? configPalets.paletsPorSeccion.niveles0y1 
-                                         : configPalets.paletsPorSeccion.otrosNiveles;
+        // PASO 4: Determinar número fijo de palets según el nivel
+        const paletsPorSeccion = nivel < 2 ? 
+            configPalets.paletsPorSeccion.niveles0y1 : 
+            configPalets.paletsPorSeccion.otrosNiveles;
         
-        // Colocar palets en cada sección
+        // PASO 5: Colocar palets en cada sección
         for (let seccion = 0; seccion < numeroSecciones; seccion++) {
+            // Calcular posición inicial de la sección
             const inicioSeccion = -halfAncho + (seccion * anchoSeccion);
-            const anchoUtilSeccion = anchoSeccion - (2 * configPalets.margenSeccion);
             
-            // Calcular espacio necesario
-            const espacioNecesario = (paletsPorSeccion * configPalets.ancho) + 
-                                   ((paletsPorSeccion - 1) * configPalets.separacion);
+            // Determinar si hay suficiente espacio para los palets con su tamaño original
+            const espacioNecesarioOriginal = (2 * configPalets.margenSeccion) +
+                                          (paletsPorSeccion * configPalets.ancho) +
+                                          ((paletsPorSeccion - 1) * configPalets.separacion);
             
-            if (espacioNecesario > anchoUtilSeccion) {
-                console.warn(`No caben ${paletsPorSeccion} palets en sección ${seccion}`);
-                continue;
-            }
+            // Decidir si ajustar el tamaño de los palets
+            let anchoPalet, separacion;
             
-            // Calcular posiciones
-            const posInicial = inicioSeccion + configPalets.margenSeccion + 
-                             ((anchoUtilSeccion - espacioNecesario) / 2);
-            
-            for (let i = 0; i < paletsPorSeccion; i++) {
-                const posX = posInicial + (i * (configPalets.ancho + configPalets.separacion)) + 
-                            (configPalets.ancho / 2);
+            if (espacioNecesarioOriginal <= anchoSeccion) {
+                // Hay suficiente espacio, mantener tamaños originales
+                anchoPalet = configPalets.ancho;
+                separacion = configPalets.separacion;
                 
-                // Palet frontal
-                crearPaletMejorado(rack, posX, alturaActual, -halfProf + 0.2, configPalets.ancho);
+                // Centrar palets en la sección
+                const espacioSobrante = anchoSeccion - espacioNecesarioOriginal;
+                const margenAjustado = configPalets.margenSeccion + (espacioSobrante / 2);
                 
-                // Palet trasero si es doble cara
-                if (dobleCara) {
-                    crearPaletMejorado(rack, posX, alturaActual, halfProf - 0.2, configPalets.ancho);
+                // Colocar palets de tamaño original
+                for (let i = 0; i < paletsPorSeccion; i++) {
+                    const posX = inicioSeccion + margenAjustado + 
+                                (i * (anchoPalet + separacion)) + (anchoPalet / 2);
+                    
+                    // Palet frontal (siempre presente)
+                    crearPaletMejorado(rack, posX, alturaActual, -halfProf + 0.2, anchoPalet);
+                    
+                    // Palet trasero solo si es doble cara
+                    if (dobleCara) {
+                        crearPaletMejorado(rack, posX, alturaActual, halfProf - 0.2, anchoPalet);
+                    }
+                }
+            } else {
+                // No hay suficiente espacio, AJUSTAR tamaños para mantener el número de palets
+                // Reducir primero la separación al mínimo necesario (0.1)
+                const separacionMinima = 0.1;
+                const margenMinimo = 0.1;
+                
+                // Espacio disponible para los palets después de restar márgenes mínimos
+                const espacioDisponible = anchoSeccion - (2 * margenMinimo);
+                
+                // Calcular ancho de palet con separación mínima
+                separacion = separacionMinima;
+                anchoPalet = (espacioDisponible - ((paletsPorSeccion - 1) * separacionMinima)) / paletsPorSeccion;
+                
+                // Colocar palets de tamaño ajustado
+                for (let i = 0; i < paletsPorSeccion; i++) {
+                    const posX = inicioSeccion + margenMinimo + 
+                                (i * (anchoPalet + separacion)) + (anchoPalet / 2);
+                    
+                    // Palet frontal (siempre presente)
+                    crearPaletMejorado(rack, posX, alturaActual, -halfProf + 0.2, anchoPalet);
+                    
+                    // Palet trasero solo si es doble cara
+                    if (dobleCara) {
+                        crearPaletMejorado(rack, posX, alturaActual, halfProf - 0.2, anchoPalet);
+                    }
                 }
             }
         }
     }
     
     // Etiqueta y metadatos
-    crearEtiquetaRack(rack, letraRack, anchuraRack, alturaRack, halfProf);
+    crearEtiquetaRack(rack, letraRack, anchuraRackAjustada, alturaRack, halfProf);
     
     rack.userData = {
         tipoObjeto: 'rack',
@@ -1170,13 +1195,13 @@ function crearRack(posicionInicial, longitud, letraRack, niveles = 8, dobleCara 
             '0-1': configPalets.paletsPorSeccion.niveles0y1,
             '2+': configPalets.paletsPorSeccion.otrosNiveles
         },
-        orientacion: 'horizontal'
+        orientacion: 'horizontal',
+        dobleCara: dobleCara  // Guardar esta información en los metadatos
     };
     
     scene.add(rack);
     return rack;
 }
-
 
 function crearEtiquetaRack(rack, letraRack, anchuraRack, alturaRack, profundidad) {
     // Crear canvas para generar la imagen del texto
@@ -1241,31 +1266,35 @@ function crearEtiquetaRack(rack, letraRack, anchuraRack, alturaRack, profundidad
     // Añadimos al rack
     rack.add(placa);
 }
-// Función para crear un palet con aspecto mejorado pero optimizado
-function crearPaletMejorado(rack, offsetX, altura, offsetZ, anchoPalet) {
-  const paletColor = 0x8a5700; // Marrón para los palets
-  const paletGeometry = new THREE.BoxGeometry(anchoPalet - 0.1, 0.12, config.cellSizeZ * 0.85);
-  const paletMaterial = new THREE.MeshBasicMaterial({ color: paletColor });
-  
-  const palet = new THREE.Mesh(paletGeometry, paletMaterial);
-  palet.position.set(offsetX, altura + 0.06, offsetZ); // Colocado encima del travesaño
-  
-  // Añadir solo 3 líneas para simular tablas del palet (reducido de 5)
-  const lineaMaterial = new THREE.LineBasicMaterial({ color: 0x5c3d1a });
-  
-  for (let i = -1; i <= 1; i++) {
-    const lineaGeometry = new THREE.BufferGeometry().setFromPoints([
-      new THREE.Vector3(anchoPalet/2 * 0.8 * i, 0.061, -config.cellSizeZ * 0.4),
-      new THREE.Vector3(anchoPalet/2 * 0.8 * i, 0.061, config.cellSizeZ * 0.4)
-    ]);
-    const linea = new THREE.Line(lineaGeometry, lineaMaterial);
-    palet.add(linea);
-  }
-  
-  rack.add(palet);
-  return palet;
-}
 
+
+
+// Usar geometrías compartidas para los palets
+const sharedPaletGeometry = new THREE.BoxGeometry(0.8, 0.12, config.cellSizeZ * 0.85);
+const sharedPaletMaterial = new THREE.MeshBasicMaterial({ color: 0x8a5700 });
+const sharedLineMaterial = new THREE.LineBasicMaterial({ color: 0x5c3d1a });
+
+// Versión sin la restricción de altura
+function crearPaletMejorado(rack, offsetX, altura, offsetZ, anchoPalet) {
+    const palet = new THREE.Mesh(sharedPaletGeometry, sharedPaletMaterial);
+    palet.scale.x = (anchoPalet - 0.1) / 0.8;
+    palet.position.set(offsetX, altura + 0.06, offsetZ);
+    
+    // Líneas para todos los palets, sin importar la altura
+    const points = [];
+    for (let i = -1; i <= 1; i++) {
+        points.push(
+            new THREE.Vector3(anchoPalet/2 * 0.8 * i, 0.061, -config.cellSizeZ * 0.4),
+            new THREE.Vector3(anchoPalet/2 * 0.8 * i, 0.061, config.cellSizeZ * 0.4)
+        );
+    }
+    const lineasGeometry = new THREE.BufferGeometry().setFromPoints(points);
+    const lineas = new THREE.LineSegments(lineasGeometry, sharedLineMaterial);
+    palet.add(lineas);
+    
+    rack.add(palet);
+    return palet;
+}
 // Función actualizada para crear cruces de refuerzo con desplazamiento personalizado
 function crearCrucesRefuerzoSimple(rack, anchuraSeccion, alturaRack, profundidad, offsetX = 0) {
     const cruzColor = 0xc0c0c0; // Plateado para las cruces
@@ -1309,67 +1338,57 @@ function crearCrucesRefuerzoSimple(rack, anchuraSeccion, alturaRack, profundidad
 }
 
 // 6. Modifica la función que inicializa los racks para usar el nuevo sistema
-// Modificación para inicializar racks con mejor orientación
 function inicializarRacks() {
-    // Definición de racks como filas con sus posiciones y longitudes
-    const distanciaEntreRacks = 3; // Separación de 3 cuadros entre racks
-    let posicionZActual = config.margenAlrededor; // Comenzar con el margen
-    
+    const distanciaEntreRacks = 3;
+    let posicionZActual = config.margenAlrededor;
+
     const racks = [
-        // Racks superiores (A-E)
-        { posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 20, letra: 'A', dobleCara: true },
+        { posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 35, letra: 'A', dobleCara: false, numeroSecciones: 15 },
     ];
-    
-    // Actualizar posición para el rack B
+
+    // Resto de los racks con diferentes cantidades de secciones
     posicionZActual += 5 + distanciaEntreRacks;
-    racks.push({ posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 20, letra: 'B', dobleCara: true });
-    
-    // Actualizar posición para el rack C
+    racks.push({ posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 35, letra: 'B', dobleCara: true, numeroSecciones: 12 });
+
     posicionZActual += 5 + distanciaEntreRacks;
-    racks.push({ posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 20, letra: 'C', dobleCara: true });
-    
-    // Actualizar posición para el rack D
+    racks.push({ posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 35, letra: 'C', dobleCara: true, numeroSecciones: 10 });
+
     posicionZActual += 5 + distanciaEntreRacks;
-    racks.push({ posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 20, letra: 'D', dobleCara: true });
-    
-    // Actualizar posición para el rack E
+    racks.push({ posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 35, letra: 'D', dobleCara: true, numeroSecciones: 14 });
+
     posicionZActual += 5 + distanciaEntreRacks;
-    racks.push({ posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 20, letra: 'E', dobleCara: true });
-    
-    // Separación extra entre E y F
+    racks.push({ posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 35, letra: 'E', dobleCara: true, numeroSecciones: 13 });
+
     posicionZActual += 5 + distanciaEntreRacks + 5;
-    
-    // Racks inferiores (F-J)
-    racks.push({ posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 20, letra: 'F', dobleCara: true });
-    
-    // Actualizar posición para el rack G
+
+    racks.push({ posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 35, letra: 'F', dobleCara: true, numeroSecciones: 12 });
+
     posicionZActual += 5 + distanciaEntreRacks;
-    racks.push({ posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 20, letra: 'G', dobleCara: true });
-    
-    // Actualizar posición para el rack H
+    racks.push({ posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 35, letra: 'G', dobleCara: true, numeroSecciones: 10 });
+
     posicionZActual += 5 + distanciaEntreRacks;
-    racks.push({ posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 20, letra: 'H', dobleCara: true });
-    
-    // Actualizar posición para el rack I
+    racks.push({ posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 35, letra: 'H', dobleCara: true, numeroSecciones: 11 });
+
     posicionZActual += 5 + distanciaEntreRacks;
-    racks.push({ posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 20, letra: 'I', dobleCara: true });
-    
-    // Actualizar posición para el rack J
+    racks.push({ posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 35, letra: 'I', dobleCara: true, numeroSecciones: 9 });
+
     posicionZActual += 5 + distanciaEntreRacks;
-    racks.push({ posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 20, letra: 'J', dobleCara: true });
-    
-    
-    // Crear cada rack
+    racks.push({ posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 35, letra: 'J', dobleCara: false, numeroSecciones: 8 });
+
+    // Crear cada rack usando la nueva lógica
     racks.forEach((rackInfo) => {
         crearRack(
             rackInfo.posInicio,
             rackInfo.longitud, 
             rackInfo.letra,
             8, // niveles
-            rackInfo.dobleCara
+            rackInfo.dobleCara,
+            rackInfo.numeroSecciones // nuevo parámetro para controlar secciones
         );
     });
 }
+
+
 // Variable global para contar frames
 let frameCount = 0;
 
@@ -1407,18 +1426,31 @@ function init() {
     animate();
 }
 
-// Función de animación optimizada
+
+// Cambia la función animate para usar un renderizado condicional
+let needsRender = true;
+
 function animate() {
-  requestAnimationFrame(animate);
-  
-  // Optimizar actualizaciones de controles
-  if (frameCount % 2 === 0) {
-    controls.update();
-  }
-  
-  renderer.render(scene, camera);
-  frameCount++;
+    requestAnimationFrame(animate);
+
+    // Simplemente renderiza si needsRender está activado
+    if (needsRender) {
+        renderer.render(scene, camera);
+        needsRender = false;
+    }
+
+    // Siempre actualizar controles cada ciertos frames
+    if (frameCount % 3 === 0) {
+        controls.update();
+    }
+    frameCount++;
 }
+
+
+// Marcar como necesario renderizar cuando hay interacción
+controls.addEventListener('change', () => {
+    needsRender = true;
+});
 
 // Función para colocar una caja en una posición específica de un rack en fila
 function colocarCajaEnRack(caja, rackLetra, posicionX, nivel, caraFrontal = true) {
