@@ -448,15 +448,17 @@ function asignarLetraRack(rackIndex) {
     return String.fromCharCode(65 + Math.min(9, Math.max(0, rackIndex)));
 }
 
+// Ejemplo de datos simplificados donde el ID ya contiene la información del lado
 const initialData = [
   {
-    id: "A14A01",
-    rack: "D",
-    nivel: 0,
-    seccion: 0,
-    lado: "A",  // A: frontal, B: trasero
+    id: "A03F03",  // Rack B, Sección 15 (que podría ser la sección trasera), Nivel B, Palet 3
     contenido: "Caja prueba",
     color: 0xffc107 // color amarillo
+  },
+  {
+    id: "B15A01",  // Rack D, Sección 25 (cara trasera), Nivel A, Palet 1
+    contenido: "Material electrónico",
+    color: 0x2196f3 // color azul
   }
 ];
 
@@ -1056,17 +1058,56 @@ function inicializarRacks() {
 // Modificación completa para corregir el posicionamiento en los racks
 // Esta solución asegura que secciones empiecen desde la izquierda (01) y respeta el tamaño de cada rack
 
-// Función mejorada para obtener parámetros de posición
+// Función modificada para obtener parámetros de posición considerando caras extendidas
 function obtenerParametrosPosicion(item) {
-    // Si el item tiene un ID estructurado (ej: "D01A01")
+    // Si el item tiene un ID estructurado (ej: "C25F02")
     if (item.id && item.id.match(/^[A-Z]\d{2}[A-Z]\d{2}$/)) {
         const rack = item.id.charAt(0);
-        // Convertir "01" → 0, "02" → 1, etc.
-        const seccion = parseInt(item.id.substring(1, 3)) - 1; 
+        
+        // Extraer el número de sección del ID
+        const seccionOriginal = parseInt(item.id.substring(1, 3));
+        
+        // Encontrar el rack correspondiente para obtener su configuración
+        const rackObj = scene.children.find(obj => 
+            obj.userData?.tipoObjeto === 'rack' && 
+            obj.userData?.letra === rack
+        );
+        
+        if (!rackObj) {
+            console.error(`No se encontró el rack ${rack}`);
+            return { rack, columna: 0, nivel: 0, palet: 0, lado: "A" };
+        }
+        
+        // Obtener el número real de secciones en este rack
+        const numSecciones = rackObj.userData.numeroSecciones || rackObj.userData.secciones;
+        const dobleCara = rackObj.userData.dobleCara;
+        
+        // Calcular lado y sección real basado en la numeración extendida
+        let seccion, lado;
+        
+        if (dobleCara) {
+            // Para racks de doble cara:
+            // Si la sección pedida es mayor que el número real de secciones,
+            // entonces es la cara trasera (lado B)
+            if (seccionOriginal > numSecciones) {
+                // La sección en la cara trasera (comenzando desde la derecha)
+                seccion = (2 * numSecciones) - seccionOriginal;
+                lado = "B";
+            } else {
+                // La sección en la cara frontal
+                seccion = seccionOriginal - 1; // Convertir a base 0
+                lado = "A";
+            }
+        } else {
+            // Para racks de una sola cara, siempre usar el frente
+            seccion = (seccionOriginal - 1) % numSecciones;
+            lado = "A";
+        }
+        
+        // Extraer nivel y palet
         const nivelLetra = item.id.charAt(3);
         const nivel = nivelLetra.charCodeAt(0) - 65; // A=0, B=1, etc.
         const palet = parseInt(item.id.substring(4, 6)) - 1; // Convertir "01" → 0, "02" → 1, etc.
-        const lado = item.lado || "A"; // Por defecto lado frontal
         
         return { 
             rack, 
@@ -1088,6 +1129,43 @@ function obtenerParametrosPosicion(item) {
     }
 }
 
+
+// Modificación de la función de generación de IDs para asegurar coherencia
+function generarIDDesdePosicion(rack, seccion, nivel, palet, lado = "A") {
+    // Encontrar el rack correspondiente
+    const rackObj = scene.children.find(obj => 
+        obj.userData?.tipoObjeto === 'rack' && 
+        obj.userData?.letra === rack
+    );
+    
+    if (!rackObj) {
+        console.error(`No se encontró el rack ${rack} para generar ID`);
+        return `${rack}${String(seccion + 1).padStart(2, '0')}${String.fromCharCode(65 + nivel)}${String(palet + 1).padStart(2, '0')}`;
+    }
+    
+    // Obtener la configuración del rack
+    const numSecciones = rackObj.userData.numeroSecciones || rackObj.userData.secciones;
+    const dobleCara = rackObj.userData.dobleCara;
+    
+    // Ajustar el número de sección según el lado
+    let seccionID;
+    
+    if (dobleCara && lado === "B") {
+        // Para la cara trasera, comenzar desde el final de las secciones frontales
+        seccionID = (2 * numSecciones) - seccion;
+    } else {
+        // Para la cara frontal, numeración normal
+        seccionID = seccion + 1;
+    }
+    
+    // Asegurar que la sección está en rango (1-numSecciones*2 para doble cara)
+    const maxSeccion = dobleCara ? numSecciones * 2 : numSecciones;
+    seccionID = Math.max(1, Math.min(seccionID, maxSeccion));
+    
+    // Construir el ID completo
+    return `${rack}${String(seccionID).padStart(2, '0')}${String.fromCharCode(65 + nivel)}${String(palet + 1).padStart(2, '0')}`;
+}
+
 // Asegurarnos de tener una función para calcular el ancho de sección
 function calcularAnchoSeccion(paletsPorSeccion, anchoPalet, separacionPalets, margenSeccion) {
     // Total de espacio horizontal necesario para los palets en una sección
@@ -1096,7 +1174,7 @@ function calcularAnchoSeccion(paletsPorSeccion, anchoPalet, separacionPalets, ma
     return espacioPalets + (margenSeccion * 2);
 }
 
-// Función mejorada para obtener la posición correcta de las cajas según rack
+// Función mejorada para obtener la posición correcta de las cajas según rack y cara
 function obtenerPosicionDesdeDatos(item) {
     const { rack, columna, nivel, palet, lado } = obtenerParametrosPosicion(item);
     
@@ -1114,6 +1192,7 @@ function obtenerPosicionDesdeDatos(item) {
     // Obtener datos del rack específico desde userData
     const rackData = rackObj.userData;
     const numSecciones = rackData.numeroSecciones || rackData.secciones;
+    const dobleCara = rackData.dobleCara;
     
     // Verificar que la sección está dentro del rango válido
     if (columna < 0 || columna >= numSecciones) {
@@ -1126,7 +1205,6 @@ function obtenerPosicionDesdeDatos(item) {
     const anchuraRack = rackData.anchura || rackData.longitud;
     const halfAncho = anchuraRack / 2;
     const halfProf = rackData.halfProf || (rackData.profundidad / 2);
-    const dobleCara = rackData.dobleCara;
     
     // Determinar palets por sección según nivel
     const paletsPorSeccion = nivel < 2 ? 
@@ -1184,9 +1262,10 @@ function obtenerPosicionDesdeDatos(item) {
     const posX = inicioSeccion + margenAjustado + 
                 (paletValido * (anchoPalet + separacion)) + (anchoPalet / 2);
     
-    // Calcular posición Z según el lado (A=frontal, B=trasero)
-    const ladoValido = dobleCara ? lado : "A"; // En racks de una cara, siempre usar lado A
-    const zOffset = ladoValido === "A" ? -halfProf + 0.2 : halfProf - 0.2;
+    // Calcular posición Z según el lado
+    // Verificar si el rack es de doble cara y ajustar el lado en consecuencia
+    const ladoEfectivo = dobleCara ? lado : "A"; // En racks de una cara, siempre usar lado A
+    const zOffset = ladoEfectivo === "A" ? -halfProf + 0.2 : halfProf - 0.2;
     const posZ = rackObj.position.z + zOffset;
     
     // Calcular posición Y (altura según nivel)
@@ -1195,7 +1274,11 @@ function obtenerPosicionDesdeDatos(item) {
     
     // Para depuración
     if (config.debug && typeof item.id !== 'undefined') {
-        console.log(`ID: ${item.id}, Rack: ${rack} (${numSecciones} secciones), Sección: ${columna+1}, Pos: (${posX.toFixed(2)}, ${posY.toFixed(2)}, ${posZ.toFixed(2)})`);
+        // Generar el ID correcto según la nueva lógica para verificar
+        const idCalculado = generarIDDesdePosicion(rack, seccionValida, nivel, paletValido, ladoEfectivo);
+        console.log(`ID Original: ${item.id}, ID Calculado: ${idCalculado}`);
+        console.log(`Rack: ${rack} (${numSecciones} secciones), Sección: ${seccionValida+1}, Lado: ${ladoEfectivo}`);
+        console.log(`Posición: (${posX.toFixed(2)}, ${posY.toFixed(2)}, ${posZ.toFixed(2)})`);
     }
     
     return { 
@@ -1204,8 +1287,11 @@ function obtenerPosicionDesdeDatos(item) {
         z: posZ 
     };
 }
+
+// Función modificada para crear cajas que guarda correctamente los IDs
 function crearCajasDesdeDatos(dataArray) {
     dataArray.forEach((item) => {
+        const { rack, columna, nivel, palet, lado } = obtenerParametrosPosicion(item);
         const { x, y, z } = obtenerPosicionDesdeDatos(item);
 
         const geometry = new THREE.BoxGeometry(
@@ -1223,14 +1309,17 @@ function crearCajasDesdeDatos(dataArray) {
         const caja = new THREE.Mesh(geometry, material);
         caja.position.set(x, y, z);
         
+        // Generamos ID correcto si no viene uno explícito
+        const id = item.id || generarIDDesdePosicion(rack, columna, nivel, palet, lado);
+        
         // Guardamos todos los datos relevantes
         caja.userData = {
-            id: item.id || `${item.rack}${String(item.seccion + 1).padStart(2, '0')}${String.fromCharCode(65 + (item.nivel || 0))}${String(item.palet + 1).padStart(2, '0')}`,
-            rack: item.rack,
-            nivel: item.nivel || 0,
-            seccion: item.seccion || 0,
-            palet: item.palet || 0,
-            lado: item.lado || "A",
+            id: id,
+            rack: rack,
+            nivel: nivel,
+            seccion: columna,
+            palet: palet,
+            lado: lado,
             contenido: item.contenido || ""
         };
 
@@ -1239,6 +1328,47 @@ function crearCajasDesdeDatos(dataArray) {
     });
 }
 
+
+// Función auxiliar para verificar IDs y posiciones
+function verificarPosicionesID(rackLetra) {
+    const rackObj = scene.children.find(obj => 
+        obj.userData?.tipoObjeto === 'rack' && 
+        obj.userData?.letra === rackLetra
+    );
+    
+    if (!rackObj) {
+        console.error(`No se encontró el rack ${rackLetra}`);
+        return;
+    }
+    
+    const rackData = rackObj.userData;
+    const numSecciones = rackData.numeroSecciones || rackData.secciones;
+    const dobleCara = rackData.dobleCara;
+    
+    console.log(`===== RACK ${rackLetra} =====`);
+    console.log(`Número de secciones: ${numSecciones}`);
+    console.log(`Doble cara: ${dobleCara ? 'Sí' : 'No'}`);
+    
+    // Mostrar esquema de IDs para ambas caras
+    console.log("\n--- ESQUEMA DE IDs ---");
+    console.log("Cara Frontal (A):");
+    for (let seccion = 0; seccion < numSecciones; seccion++) {
+        const idEjemplo = generarIDDesdePosicion(rackLetra, seccion, 0, 0, "A");
+        console.log(`  Sección ${seccion+1}: ${idEjemplo}`);
+    }
+    
+    if (dobleCara) {
+        console.log("\nCara Trasera (B):");
+        for (let seccion = 0; seccion < numSecciones; seccion++) {
+            const idEjemplo = generarIDDesdePosicion(rackLetra, seccion, 0, 0, "B");
+            console.log(`  Sección ${numSecciones-seccion}: ${idEjemplo} (corresponde a la sección ${seccion+1} vista desde atrás)`);
+        }
+    }
+    
+    // Total de posiciones disponibles
+    const totalPosiciones = numSecciones * (dobleCara ? 2 : 1);
+    console.log(`\nTotal de secciones numeradas: ${totalPosiciones}`);
+}
 
 // Variable global para contar frames
 let frameCount = 0;
