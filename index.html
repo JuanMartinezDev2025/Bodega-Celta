@@ -23,15 +23,7 @@
       flex-wrap: wrap;
       justify-content: center;
     }
-    button {
-      padding: 8px 15px;
-      cursor: pointer;
-      background: #2196f3;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      font-size: 14px;
-    }
+    
     button:hover {
       background: #0b7dda;
     }
@@ -456,371 +448,28 @@ function asignarLetraRack(rackIndex) {
     return String.fromCharCode(65 + Math.min(9, Math.max(0, rackIndex)));
 }
 
-// Datos ampliados para incluir pasillos A hasta G
 const initialData = [
-    // PASILLO A
-   
-    
+  {
+    id: "A14A01",
+    rack: "D",
+    nivel: 0,
+    seccion: 0,
+    lado: "A",  // A: frontal, B: trasero
+    contenido: "Caja prueba",
+    color: 0xffc107 // color amarillo
+  }
 ];
 
 
 
 
 
- 
-function agregarCaja(columnaData, indexCaja, posX, posZ) {
-    const cajaData = columnaData.cajas[indexCaja];
-    const color = colores[cajaData.categoria] || colores.default;
-    
-    const geometriaCaja = new THREE.BoxGeometry(
-        config.cellSizeX * 0.85, // Ajustado al tamaño de la celda
-        config.alturaCaja, 
-        config.cellSizeZ * 0.85  // Ajustado al tamaño de la celda
-    );
-    
-    const materialCaja = new THREE.MeshStandardMaterial({ 
-        color: color,
-        metalness: 0.3,
-        roughness: 0.4
-    });
-    
-    const caja = new THREE.Mesh(geometriaCaja, materialCaja);
-    
-    // Posicionamos la caja exactamente en el centro de la celda
-    caja.position.set(
-        posX, 
-        config.alturaCaja/2, 
-        posZ
-    );
-    
-    // Configurar sombras y bordes
-    caja.castShadow = true;
-    caja.receiveShadow = true;
-    
-    const edges = new THREE.EdgesGeometry(caja.geometry);
-    const line = new THREE.LineSegments(
-        edges,
-        new THREE.LineBasicMaterial({ color: 0x000000, linewidth: 1 })
-    );
-    caja.add(line);
-    caja.userData.bordes = line;
-
-    // Crear etiquetas
-    crearEtiquetaMulticara(caja, cajaData.etiqueta || `Caja-${indexCaja}`);
-                
-    // Almacenar datos
-    caja.userData = {
-        columna: columnaData,
-        index: indexCaja,
-        info: cajaData
-    };
-    
-    scene.add(caja);
-    boxes.push(caja);
-    return caja;
-}
-
-   
-      //Actualizar etiquetas de las cajas
-      function actualizarEtiquetasMulticara() {
-        boxes.forEach(caja => {
-            // Eliminar etiquetas antiguas
-            if (caja.userData.etiquetaMesh) {
-                caja.remove(caja.userData.etiquetaMesh);
-            }
-            
-            // Crear nuevas etiquetas
-            crearEtiquetaMulticara(caja, caja.userData.info.etiqueta || `Caja-${caja.userData.index}`);
-        });
-    }
 
 
-
-    
-    //Crear etiquetas en todas las caras de la caja
-    function crearEtiquetaMulticara(caja, texto) {
-    const loader = new THREE.FontLoader();
-    
-    loader.load('./helvetiker_regular.typeface.json', function(font) {
-        // Eliminar etiqueta existente si hay una
-        if (caja.userData.etiquetaMesh) {
-            caja.remove(caja.userData.etiquetaMesh);
-        }
-        
-        const grupoEtiquetas = new THREE.Group();
-        const textSize = Math.min(config.alturaCaja * 0.15, 0.3); // Limitar tamaño máximo
-        
-        // Crear geometría para el texto actual
-        const textGeometry = new THREE.TextGeometry(texto, {
-            font: font,
-            size: textSize,
-            height: 0.02,
-            curveSegments: 4,
-            bevelEnabled: false
-        });
-        
-        // Centrar el texto
-        textGeometry.computeBoundingBox();
-        const textWidth = textGeometry.boundingBox.max.x - textGeometry.boundingBox.min.x;
-        const textHeight = textGeometry.boundingBox.max.y - textGeometry.boundingBox.min.y;
-        textGeometry.translate(-textWidth/2, -textHeight/2, 0);
-        
-        const textMaterial = new THREE.MeshBasicMaterial({ 
-            color: 0x000000,
-            transparent: true,
-            opacity: 0.9
-        });
-        
-        // Configuraciones para cada cara
-        const caras = [
-            { pos: [0, 0, config.profundidadCaja/2 + 0.01], rot: [0, 0, 0] },       // Frontal
-            { pos: [0, 0, -config.profundidadCaja/2 - 0.01], rot: [0, Math.PI, 0] }, // Trasera
-            { pos: [config.anchoCaja/2 + 0.01, 0, 0], rot: [0, Math.PI/2, 0] },      // Derecha
-            { pos: [-config.anchoCaja/2 - 0.01, 0, 0], rot: [0, -Math.PI/2, 0] },    // Izquierda
-            { pos: [0, config.alturaCaja/2 + 0.01, 0], rot: [-Math.PI/2, 0, 0] },    // Superior
-            //{ pos: [0, -config.alturaCaja/2 - 0.01, 0], rot: [Math.PI/2, 0, 0] }     // Inferior (opcional)
-        ];
-        
-        caras.forEach((cara) => {
-            const textMesh = new THREE.Mesh(textGeometry.clone(), textMaterial.clone());
-            textMesh.position.set(...cara.pos);
-            textMesh.rotation.set(...cara.rot);
-            
-            // Crear fondo para la etiqueta
-            const fondoWidth = textWidth + textSize * 0.5;
-            const fondoHeight = textHeight + textSize * 0.3;
-            const fondoGeometry = new THREE.PlaneGeometry(fondoWidth, fondoHeight);
-            const fondoMaterial = new THREE.MeshBasicMaterial({
-                color: 0xffffff,
-                side: THREE.DoubleSide,
-                transparent: true,
-                opacity: 0.7
-            });
-            
-            const fondo = new THREE.Mesh(fondoGeometry, fondoMaterial);
-            fondo.position.copy(textMesh.position);
-            fondo.rotation.copy(textMesh.rotation);
-            // Ajustar posición Z para que el fondo esté detrás del texto
-            fondo.position.z += (cara.pos[2] >= 0) ? 0.001 : -0.001;
-            
-            grupoEtiquetas.add(fondo);
-            grupoEtiquetas.add(textMesh);
-        });
-        
-        caja.add(grupoEtiquetas);
-        caja.userData.etiquetaMesh = grupoEtiquetas;
-    });
-}
-
-    // Función para optimizar etiquetas
-    function optimizarEtiquetas() {
-    // Compartir geometría y material entre todas las etiquetas
-    const loader = new FontLoader();
-    
-    loader.load('./helvetiker_regular.typeface.json', function(font) {
-        // Crear geometría compartida
-        const sampleText = "000"; // Texto de muestra para tamaño
-        const textGeometry = new TextGeometry(sampleText, {
-            font: font,
-            size: config.alturaCaja * 0.15,
-            height: 0.02,
-            curveSegments: 4,
-            bevelEnabled: false
-        });
-        
-        // Material compartido
-        const textMaterial = new THREE.MeshBasicMaterial({ 
-            color: 0x000000,
-            transparent: true,
-            opacity: 0.9
-        });
-        
-        const fondoMaterial = new THREE.MeshBasicMaterial({
-            color: 0xffffff,
-            side: THREE.DoubleSide,
-            transparent: true,
-            opacity: 0.7
-        });
-        
-        boxes.forEach(caja => {
-            if (caja.userData.etiquetaMesh) {
-                caja.remove(caja.userData.etiquetaMesh);
-            }
-            
-            const grupoEtiquetas = new THREE.Group();
-            const texto = caja.userData.info.etiqueta || `Caja-${caja.userData.index}`;
-            
-            // Calcular ancho del texto actual
-            const tempGeometry = textGeometry.clone();
-            tempGeometry = new TextGeometry(texto, {
-                font: font,
-                size: config.alturaCaja * 0.15,
-                height: 0.02,
-                curveSegments: 4,
-                bevelEnabled: false
-            });
-            tempGeometry.computeBoundingBox();
-            const textWidth = tempGeometry.boundingBox.max.x - tempGeometry.boundingBox.min.x;
-            tempGeometry.translate(-textWidth/2, 0, 0);
-            
-            // ... (resto del código para crear etiquetas en cada cara)
-            
-            caja.add(grupoEtiquetas);
-            caja.userData.etiquetaMesh = grupoEtiquetas;
-        });
-    });
-}
    
 
 
-
-    // Si hay una función para reconstruir columnas, también la actualizamos
-function reconstruirColumna(columna) {
-    // Eliminar todas las cajas de esta columna
-    boxes.filter(b => b.userData.columna === columna).forEach(b => {
-        // Eliminar también las etiquetas
-        if (b.userData.etiquetaMesh) {
-            b.remove(b.userData.etiquetaMesh);
-        }
-        scene.remove(b);
-    });
-    
-    // Calcular posición basada en gridPos
-    const gridOffsetX = -config.gridWidth / 2;
-    const gridOffsetZ = -config.gridDepth / 2;
-    
-    // Posición X (ajustada para alinear correctamente con la cuadrícula)
-    let posX = gridOffsetX + (columna.gridPos.x * config.cellSizeX) + config.cellSizeX/2;
-    
-    // Posición Z (normal)
-    const posZ = gridOffsetZ + (columna.gridPos.z * config.cellSizeZ) + config.cellSizeZ/2;
-    
-    // Volver a crear las cajas (que ahora incluirán etiquetas)
-    columna.cajas.forEach((cajaData, index) => {
-        const nuevaCaja = agregarCaja(columna, index, posX, posZ);
-        // Modificar en las funciones relevantes para que siempre sean visibles
-        boxes.forEach(box => {
-            box.visible = true; // Siempre visible
-        });
-
-        bases.forEach(base => {
-            base.visible = true; // Siempre visible
-        });
-    });
-}
-
-
-// Actualizar la función mostrarModalCaja para mostrar la información correctamente
-function mostrarModalCaja(caja) {
-    const info = caja.userData.info;
-    const columnaData = caja.userData.columna;
-
-    // Llenar la información general
-    document.getElementById('modal-box-label').textContent = info.etiqueta || 'N/A';
-    document.getElementById('modal-box-category').textContent = info.categoria || 'N/A';
-    document.getElementById('modal-box-capacity').textContent = `${info.capacidad_disponible || 0}/${info.capacidad_total || 0}`;
-    
-    // Modificar para mostrar rack como una fila
-    const letraRack = columnaData.rack || 'N/A';
-    document.getElementById('modal-box-location').textContent = `Rack ${letraRack} - Fila`;
-    
-    // Llenar la tabla de artículos
-    const articulosTableBody = document.getElementById('modal-box-articles');
-    articulosTableBody.innerHTML = '';
-    
-    if (info.articulos && info.articulos.length > 0) {
-      info.articulos.forEach(articulo => {
-        const row = document.createElement('tr');
-        
-        // Crear celdas para cada propiedad del artículo
-        const codigoCell = document.createElement('td');
-        codigoCell.textContent = articulo.codigo || 'N/A';
-        
-        const nombreCell = document.createElement('td');
-        nombreCell.textContent = articulo.nombre || 'N/A';
-        
-        const loteCell = document.createElement('td');
-        loteCell.textContent = articulo.lote || 'N/A';
-        
-        const paletCell = document.createElement('td');
-        paletCell.textContent = articulo.palet || 'N/A';
-        
-        const cantidadCell = document.createElement('td');
-        cantidadCell.textContent = articulo.cantidad || '0';
-        
-        // Añadir las celdas a la fila
-        row.appendChild(codigoCell);
-        row.appendChild(nombreCell);
-        row.appendChild(loteCell);
-        row.appendChild(paletCell);
-        row.appendChild(cantidadCell);
-        
-        // Añadir la fila a la tabla
-        articulosTableBody.appendChild(row);
-      });
-    } else {
-      // Si no hay artículos, mostrar mensaje
-      const row = document.createElement('tr');
-      const cell = document.createElement('td');
-      cell.colSpan = 6; // Para que ocupe todas las columnas
-      cell.textContent = 'No hay artículos en esta caja';
-      cell.style.textAlign = 'center';
-      row.appendChild(cell);
-      articulosTableBody.appendChild(row);
-    }
-    
-    // Mostrar el modal y el overlay
-    document.getElementById('box-modal').style.display = 'block';
-    document.getElementById('modal-overlay').style.display = 'block';
-}
-
-    //Mostrasr informacion de la caja 
-    function mostrarInformacionCaja(caja) {
-      const infoPanel = document.getElementById('box-info-panel');
-      const info = caja.userData.info;
-
-      document.getElementById('box-info-etiqueta').textContent = info.etiqueta || 'N/A';
-      document.getElementById('box-info-articulo').textContent = info.articulo || 'N/A';
-      document.getElementById('box-info-producto').textContent = info.producto || 'N/A';  // Añadir esta línea
-      document.getElementById('box-info-lote').textContent = info.lote || 'N/A';
-      document.getElementById('box-info-palet').textContent = info.palet || 'N/A';
-      document.getElementById('box-info-cantidad').textContent = info.cantidad || 'N/A';
-      document.getElementById('box-info-categoria').textContent = info.categoria || 'N/A';
-      
-      infoPanel.style.display = 'block';
-    }
-
    
-    
-
-    function getGridPositionFromClick(event) {
-      const mouse = new THREE.Vector2(
-        (event.clientX / window.innerWidth) * 2 - 1,
-        -(event.clientY / window.innerHeight) * 2 + 1
-      );
-      
-      const raycaster = new THREE.Raycaster();
-      raycaster.setFromCamera(mouse, camera);
-      
-      const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-      const intersection = new THREE.Vector3();
-      if (!raycaster.ray.intersectPlane(plane, intersection)) {
-        return null;
-      }
-      
-      const gridOffsetX = -config.gridWidth / 2;
-      const gridOffsetZ = -config.gridDepth / 2;
-      
-      const gridX = Math.floor((intersection.x - gridOffsetX) / config.cellSizeX);
-      const gridZ = Math.floor((intersection.z - gridOffsetZ) / config.cellSizeZ);
-      
-      if (gridX >= 0 && gridX < config.widthDivisions && 
-          gridZ >= 0 && gridZ < config.depthDivisions) {
-        return { x: gridX, z: gridZ };
-      }
-      
-      return null;
-    }
 
     function setupInteraccion() {
     // 1. Variables para optimización
@@ -1015,9 +664,6 @@ function createGrid() {
     controls.update();
 }
 
-function calcularAnchoSeccion(paletsPorSeccion, anchoPalet, separacion, margen) {
-    return (2 * margen) + (paletsPorSeccion * anchoPalet) + ((paletsPorSeccion - 1) * separacion);
-}
 
 
 // Crear materiales compartidos al inicio
@@ -1189,14 +835,29 @@ function crearRack(posicionInicial, longitud, letraRack, niveles = 8, dobleCara 
     rack.userData = {
         tipoObjeto: 'rack',
         letra: letraRack,
-        anchura: anchuraRack,
+        posInicio: {
+            x: posInicioX - halfAncho, // Coordenada X real del inicio del rack (borde izquierdo)
+            z: posZ
+        },
+        longitud: anchuraRackAjustada,
+        anchura: anchuraRackAjustada,
+        profundidad: profundidadRack,
+        halfProf: halfProf,
+        alturaRack: alturaRack,
+        niveles: niveles,
+        espacioEntreNiveles: espacioEntreNiveles,
         secciones: numeroSecciones,
+        numeroSecciones: numeroSecciones, // Para mantener consistencia con el código anterior
+        anchoSeccion: anchoSeccion,
+        configPalets: {
+            ...configPalets
+        },
         paletsPorNivel: {
             '0-1': configPalets.paletsPorSeccion.niveles0y1,
             '2+': configPalets.paletsPorSeccion.otrosNiveles
         },
         orientacion: 'horizontal',
-        dobleCara: dobleCara  // Guardar esta información en los metadatos
+        dobleCara: dobleCara
     };
     
     scene.add(rack);
@@ -1263,6 +924,8 @@ function crearEtiquetaRack(rack, letraRack, anchuraRack, alturaRack, profundidad
     // Posicionamos la placa encima del rack
     placa.position.set(-anchuraRack / 2 - 0.1, alturaRack + 0.4, 0);
 
+
+    
     // Añadimos al rack
     rack.add(placa);
 }
@@ -1389,6 +1052,194 @@ function inicializarRacks() {
 }
 
 
+
+// Modificación completa para corregir el posicionamiento en los racks
+// Esta solución asegura que secciones empiecen desde la izquierda (01) y respeta el tamaño de cada rack
+
+// Función mejorada para obtener parámetros de posición
+function obtenerParametrosPosicion(item) {
+    // Si el item tiene un ID estructurado (ej: "D01A01")
+    if (item.id && item.id.match(/^[A-Z]\d{2}[A-Z]\d{2}$/)) {
+        const rack = item.id.charAt(0);
+        // Convertir "01" → 0, "02" → 1, etc.
+        const seccion = parseInt(item.id.substring(1, 3)) - 1; 
+        const nivelLetra = item.id.charAt(3);
+        const nivel = nivelLetra.charCodeAt(0) - 65; // A=0, B=1, etc.
+        const palet = parseInt(item.id.substring(4, 6)) - 1; // Convertir "01" → 0, "02" → 1, etc.
+        const lado = item.lado || "A"; // Por defecto lado frontal
+        
+        return { 
+            rack, 
+            columna: seccion, 
+            nivel, 
+            palet, 
+            lado 
+        };
+    }
+    // Si el item tiene propiedades separadas (para compatibilidad)
+    else {
+        return {
+            rack: item.rack,
+            columna: (item.seccion !== undefined) ? item.seccion : 0,
+            nivel: item.nivel !== undefined ? item.nivel : 0,
+            palet: item.palet !== undefined ? item.palet : 0,
+            lado: item.lado || "A"
+        };
+    }
+}
+
+// Asegurarnos de tener una función para calcular el ancho de sección
+function calcularAnchoSeccion(paletsPorSeccion, anchoPalet, separacionPalets, margenSeccion) {
+    // Total de espacio horizontal necesario para los palets en una sección
+    const espacioPalets = (paletsPorSeccion * anchoPalet) + ((paletsPorSeccion - 1) * separacionPalets);
+    // Ancho total incluyendo márgenes
+    return espacioPalets + (margenSeccion * 2);
+}
+
+// Función mejorada para obtener la posición correcta de las cajas según rack
+function obtenerPosicionDesdeDatos(item) {
+    const { rack, columna, nivel, palet, lado } = obtenerParametrosPosicion(item);
+    
+    // Encontrar el rack correspondiente
+    const rackObj = scene.children.find(obj => 
+        obj.userData?.tipoObjeto === 'rack' && 
+        obj.userData?.letra === rack
+    );
+    
+    if (!rackObj) {
+        console.error(`No se encontró el rack ${rack}`);
+        return { x: 0, y: 0, z: 0 };
+    }
+
+    // Obtener datos del rack específico desde userData
+    const rackData = rackObj.userData;
+    const numSecciones = rackData.numeroSecciones || rackData.secciones;
+    
+    // Verificar que la sección está dentro del rango válido
+    if (columna < 0 || columna >= numSecciones) {
+        console.warn(`La sección ${columna+1} está fuera del rango para el rack ${rack} (1-${numSecciones}). Ajustando valor.`);
+    }
+    const seccionValida = Math.min(Math.max(0, columna), numSecciones - 1);
+    
+    // Obtener configuración del rack
+    const anchoSeccion = rackData.anchoSeccion;
+    const anchuraRack = rackData.anchura || rackData.longitud;
+    const halfAncho = anchuraRack / 2;
+    const halfProf = rackData.halfProf || (rackData.profundidad / 2);
+    const dobleCara = rackData.dobleCara;
+    
+    // Determinar palets por sección según nivel
+    const paletsPorSeccion = nivel < 2 ? 
+        rackData.paletsPorNivel['0-1'] : 
+        rackData.paletsPorNivel['2+'];
+    
+    // Configuración de palets (usar la guardada o los valores predeterminados)
+    const configPalets = rackData.configPalets || {
+        ancho: 0.9,
+        separacion: 0.3,
+        margenSeccion: 0.3
+    };
+    
+    // Calcular la posición X del inicio de la sección desde la posición del rack
+    const posXRack = rackObj.position.x;
+    const inicioRack = posXRack - halfAncho;
+    const inicioSeccion = inicioRack + (seccionValida * anchoSeccion);
+    
+    // Determinar dimensiones de los palets en esta sección específica
+    const espacioNecesarioOriginal = (2 * configPalets.margenSeccion) +
+                                  (paletsPorSeccion * configPalets.ancho) +
+                                  ((paletsPorSeccion - 1) * configPalets.separacion);
+    
+    let anchoPalet, separacion, margenAjustado;
+    
+    if (espacioNecesarioOriginal <= anchoSeccion) {
+        // Hay suficiente espacio, mantener tamaños originales
+        anchoPalet = configPalets.ancho;
+        separacion = configPalets.separacion;
+        
+        // Centrar palets en la sección
+        const espacioSobrante = anchoSeccion - espacioNecesarioOriginal;
+        margenAjustado = configPalets.margenSeccion + (espacioSobrante / 2);
+    } else {
+        // No hay suficiente espacio, usar tamaños ajustados
+        const separacionMinima = 0.1;
+        const margenMinimo = 0.1;
+        
+        // Espacio disponible para los palets después de restar márgenes mínimos
+        const espacioDisponible = anchoSeccion - (2 * margenMinimo);
+        
+        // Calcular ancho de palet con separación mínima
+        separacion = separacionMinima;
+        anchoPalet = (espacioDisponible - ((paletsPorSeccion - 1) * separacionMinima)) / paletsPorSeccion;
+        margenAjustado = margenMinimo;
+    }
+    
+    // Verificar que el palet está dentro del rango válido
+    if (palet < 0 || palet >= paletsPorSeccion) {
+        console.warn(`El palet ${palet+1} está fuera del rango para nivel ${nivel+1} (1-${paletsPorSeccion}). Ajustando valor.`);
+    }
+    const paletValido = Math.min(Math.max(0, palet), paletsPorSeccion - 1);
+    
+    // Calcular posición X del palet
+    const posX = inicioSeccion + margenAjustado + 
+                (paletValido * (anchoPalet + separacion)) + (anchoPalet / 2);
+    
+    // Calcular posición Z según el lado (A=frontal, B=trasero)
+    const ladoValido = dobleCara ? lado : "A"; // En racks de una cara, siempre usar lado A
+    const zOffset = ladoValido === "A" ? -halfProf + 0.2 : halfProf - 0.2;
+    const posZ = rackObj.position.z + zOffset;
+    
+    // Calcular posición Y (altura según nivel)
+    const espacioEntreNiveles = rackData.espacioEntreNiveles || (config.alturaCaja + 0.2);
+    const posY = nivel * espacioEntreNiveles + config.alturaCaja/2;
+    
+    // Para depuración
+    if (config.debug && typeof item.id !== 'undefined') {
+        console.log(`ID: ${item.id}, Rack: ${rack} (${numSecciones} secciones), Sección: ${columna+1}, Pos: (${posX.toFixed(2)}, ${posY.toFixed(2)}, ${posZ.toFixed(2)})`);
+    }
+    
+    return { 
+        x: posX, 
+        y: posY, 
+        z: posZ 
+    };
+}
+function crearCajasDesdeDatos(dataArray) {
+    dataArray.forEach((item) => {
+        const { x, y, z } = obtenerPosicionDesdeDatos(item);
+
+        const geometry = new THREE.BoxGeometry(
+            config.anchoCaja, 
+            config.alturaCaja, 
+            config.profundidadCaja
+        );
+        
+        const material = new THREE.MeshStandardMaterial({
+            color: item.color || 0x4caf50,
+            metalness: 0.3,
+            roughness: 0.5
+        });
+
+        const caja = new THREE.Mesh(geometry, material);
+        caja.position.set(x, y, z);
+        
+        // Guardamos todos los datos relevantes
+        caja.userData = {
+            id: item.id || `${item.rack}${String(item.seccion + 1).padStart(2, '0')}${String.fromCharCode(65 + (item.nivel || 0))}${String(item.palet + 1).padStart(2, '0')}`,
+            rack: item.rack,
+            nivel: item.nivel || 0,
+            seccion: item.seccion || 0,
+            palet: item.palet || 0,
+            lado: item.lado || "A",
+            contenido: item.contenido || ""
+        };
+
+        scene.add(caja);
+        boxes.push(caja);
+    });
+}
+
+
 // Variable global para contar frames
 let frameCount = 0;
 
@@ -1398,17 +1249,13 @@ function init() {
     actualizarConfiguracion();
     inicializarRacks(); // Primero crea los racks
     createGrid();
-    
+    crearCajasDesdeDatos(initialData);
+
     // Optimizar el renderer pero mantener buena calidad
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     
-    // Limitar la cantidad de datos iniciales, pero no demasiado
-    if (typeof initialData !== 'undefined') {
-        const dataReducida = initialData.slice(0, Math.min(initialData.length, 15));
-        dataReducida.forEach(col => crearColumna(col));
-    }
     
-    inicializarRacks();
+    
     
     if (typeof setupInteraccion === 'function') {
         setupInteraccion();
@@ -1452,29 +1299,6 @@ controls.addEventListener('change', () => {
     needsRender = true;
 });
 
-// Función para colocar una caja en una posición específica de un rack en fila
-function colocarCajaEnRack(caja, rackLetra, posicionX, nivel, caraFrontal = true) {
-    // Encuentra el rack por su letra
-    const racks = scene.children.filter(obj => 
-        obj.userData && obj.userData.tipoObjeto === 'rack' && obj.userData.letra === rackLetra);
-    
-    if (racks.length === 0) return false;
-    
-    const rack = racks[0];
-    const anchuraRack = rack.userData.anchura;
-    const mitadAnchura = anchuraRack / 2;
-    
-    // Calcular posición dentro del rack
-    const posX = -mitadAnchura + posicionX;
-    const posY = nivel * (config.alturaCaja + 0.2);
-    const posZ = caraFrontal ? -config.cellSizeZ : config.cellSizeZ;
-    
-    // Colocar la caja
-    caja.position.set(posX, posY, posZ);
-    rack.add(caja);
-    
-    return true;
-}
 
     init();
   </script>
