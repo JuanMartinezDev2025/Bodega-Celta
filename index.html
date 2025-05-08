@@ -9,6 +9,37 @@
     /*canvas para renderizar*/
     canvas { display: block; }
   
+
+    
+    /* Estilo para el overlay */
+    .overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0,0,0,0.5);
+      z-index: 1000;
+    }
+
+    /* Botones del modal */
+    .form-buttons {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .edit-button {
+      background-color: #4CAF50;
+      color: white;
+    }
+
+    .edit-button:hover {
+      background-color: #3e8e41;
+    }
+
     #controls {
       position: absolute;
       bottom: 20px;
@@ -58,7 +89,7 @@
       padding: 20px;
       border-radius: 8px;
       box-shadow: 0 0 20px rgba(0,0,0,0.3);
-      z-index: 1001;
+      z-index: 1002;
       width: 80%;
       max-width: 800px;
       max-height: 80vh;
@@ -128,16 +159,17 @@
       background-color: #e6f7ff;
     }
     
+    /* Mejorar el botón de cerrar */
     #close-modal {
-      margin-top: 20px;
       padding: 8px 15px;
       background: #2196f3;
       color: white;
       border: none;
       border-radius: 4px;
       cursor: pointer;
-      float: right;
+      transition: background 0.3s;
     }
+
     
     #close-modal:hover {
       background: #0b7dda;
@@ -156,7 +188,22 @@
       z-index: 10;
     }
    
- 
+    .box-info-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+
+ /* Mejoras para el modal en móviles */
+  @media (max-width: 768px) {
+    #box-modal {
+      width: 95%;
+      max-height: 90vh;
+    }
+    
+    .box-info-grid {
+      grid-template-columns: 1fr !important;
+    }
+  }
 
     /* Animación para aparecer suavemente */
     @keyframes fadeIn {
@@ -301,57 +348,42 @@
 </head>
 <body>
  
- 
-
- 
-
-   <!-- Modal de información detallada de caja -->
-   <div id="box-modal">
-    <h3>Información Detallada de la Posicion</h3>
+  <div id="box-modal">
+    <h3>Información del Palet</h3>
     
-      <div class="modal-section">
-        <h4>Información General</h4>
-        <div class="box-info-grid">
-          <div class="box-info-item">
-            <span class="box-info-label">Etiqueta:</span>
-            <span id="modal-box-label"></span>
-          </div>
-          <div class="box-info-item">
-            <span class="box-info-label">Categoría:</span>
-            <span id="modal-box-category"></span>
-          </div>
-          <div class="box-info-item">
-            <span class="box-info-label">Posicion:</span>
-            <span id="modal-box-location"></span>
-          </div>
-          <div class="box-info-item">
-            <span class="box-info-label">Capacidad:</span>
-            <span id="modal-box-capacity"></span>
-          </div>
-        </div>
+    <div class="box-info-grid">
+      <div class="box-info-item">
+        <span class="box-info-label">ID:</span>
+        <span id="modal-box-id"></span>
       </div>
-      
-      <div class="modal-section">
-        <h4>Artículos en la Caja</h4>
-        <table class="articles-table">
-          <thead>
-            <tr>
-              <th>Artículo</th>
-              <th>Nombre</th>
-              <th>Lote</th>
-              <th>Palet</th>
-              <th>Cantidad</th>
-
-            </tr>
-          </thead>
-          <tbody id="modal-box-articles">
-            <!-- Los artículos se llenarán dinámicamente -->
-          </tbody>
-        </table>
+      <div class="box-info-item">
+        <span class="box-info-label">Contenido:</span>
+        <span id="modal-box-content"></span>
       </div>
-      
-      <button id="close-modal">Cerrar</button>
+      <div class="box-info-item">
+        <span class="box-info-label">Rack:</span>
+        <span id="modal-box-rack"></span>
+      </div>
+      <div class="box-info-item">
+        <span class="box-info-label">Sección:</span>
+        <span id="modal-box-section"></span>
+      </div>
+      <div class="box-info-item">
+        <span class="box-info-label">Nivel:</span>
+        <span id="modal-box-level"></span>
+      </div>
+      <div class="box-info-item">
+        <span class="box-info-label">Palet:</span>
+        <span id="modal-box-pallet"></span>
+      </div>
     </div>
+    
+    <button id="close-modal">Cerrar</button>
+  </div>
+  
+  <div id="modal-overlay" class="overlay"></div>
+
+
     <!-- Importar Three.js y OrbitControls -->
   <script type="module">
     import * as THREE from './three.module.js';
@@ -451,28 +483,117 @@ function asignarLetraRack(rackIndex) {
 // Ejemplo de datos simplificados donde el ID ya contiene la información del lado
 const initialData = [
   {
-    id: "A03F03",  // Rack B, Sección 15 (que podría ser la sección trasera), Nivel B, Palet 3
-    contenido: "Caja prueba",
-    color: 0xffc107 // color amarillo
-  },
+    id: "A03F03",
+    contenido: "Componentes electrónicos",
+    rack: "B",
+    seccion: 14,
+    nivel: 0,
+    palet: 0,
+    lado: "A",
+    articulos: [
+        { codigo: "RES-100", cantidad: 50, lote: "L2023-05", estado: "Nuevo" },
+        { codigo: "CAP-220", cantidad: 30, lote: "L2023-02", estado: "Nuevo" }
+    ]
+},
   {
     id: "B15A01",  // Rack D, Sección 25 (cara trasera), Nivel A, Palet 1
+    contenido: "Material electrónico",
+    color: 0x2196f3 // color azul
+  },
+  {
+    id: "D15A01",  // Rack D, Sección 25 (cara trasera), Nivel A, Palet 1
     contenido: "Material electrónico",
     color: 0x2196f3 // color azul
   }
 ];
 
+// Función para seleccionar caja y mostrar modal
+function seleccionarCaja(caja) {
+    // Quitar selección anterior si existe
+    if (selectedBox) {
+        selectedBox.material.emissive.setHex(0x000000);
+    }
+    
+    // Seleccionar nueva caja
+    selectedBox = caja;
+    selectedBox.material.emissive.setHex(0x888888);
+    
+    // Mostrar información en el modal
+    mostrarModalCaja(caja);
+    
+    needsRender = true;
+}
+
+// Función para mostrar el modal
+function mostrarModalCaja(caja) {
+    const modal = document.getElementById('box-modal');
+    const overlay = document.getElementById('modal-overlay');
+    const userData = caja.userData;
+    
+    // Llenar información en el modal
+    document.getElementById('modal-box-id').textContent = userData.id || 'N/A';
+    document.getElementById('modal-box-content').textContent = userData.contenido || 'N/A';
+    document.getElementById('modal-box-rack').textContent = userData.rack || 'N/A';
+    document.getElementById('modal-box-section').textContent = (userData.seccion + 1) || 'N/A';
+    document.getElementById('modal-box-level').textContent = String.fromCharCode(65 + userData.nivel) || 'N/A';
+    document.getElementById('modal-box-pallet').textContent = (userData.palet + 1) || 'N/A';
+    
 
 
+    // Mostrar artículos si existen
+    const articulosContainer = document.getElementById('modal-box-items');
+    if (articulosContainer) {
+        if (userData.articulos && userData.articulos.length > 0) {
+            let articulosHTML = '<h4>Artículos:</h4><ul>';
+            userData.articulos.forEach(articulo => {
+                articulosHTML += `<li>Código: ${articulo.codigo} - Cantidad: ${articulo.cantidad} - Lote: ${articulo.lote} - Estado: ${articulo.estado}</li>`;
+            });
+            articulosHTML += '</ul>';
+            articulosContainer.innerHTML = articulosHTML;
+            articulosContainer.style.display = 'block';
+        } else {
+            articulosContainer.innerHTML = '';
+            articulosContainer.style.display = 'none';
+        }
+    }
+    // Mostrar modal
+    modal.style.display = 'block';
+    overlay.style.display = 'block';
+    
+    // Desactivar controles de la cámara mientras el modal está abierto
+    controls.enabled = false;
+}
 
+// Función para actualizar etiquetas existentes (por ejemplo, si cambia el ID)
+function actualizarEtiquetaCaja(caja) {
+    // Eliminar etiquetas anteriores
+    caja.children.forEach(child => {
+        if (child.isGroup) {
+            caja.remove(child);
+        }
+    });
+    
+    // Crear nuevas etiquetas
+    crearEtiquetaCaja(caja);
+}
 
-
-
-   
-
-
-   
-
+// Función para cerrar el modal
+function cerrarModal() {
+    const modal = document.getElementById('box-modal');
+    const overlay = document.getElementById('modal-overlay');
+    
+    modal.style.display = 'none';
+    overlay.style.display = 'none';
+    
+    // Restaurar selección
+    if (selectedBox) {
+        selectedBox.material.emissive.setHex(0x000000);
+        selectedBox = null;
+    }
+    
+    // Reactivar controles de la cámara
+    controls.enabled = true;
+}
     function setupInteraccion() {
     // 1. Variables para optimización
     let lastMouseMove = 0;
@@ -533,27 +654,34 @@ const initialData = [
       }
       // Nota: Eliminé el else ya que no hacía nada
     });
-    
-    // 4. Cerrar modal (optimizado con delegación de eventos)
-    document.body.addEventListener('click', (event) => {
-      if (event.target.id === 'close-modal') {
-        const modal = document.getElementById('box-modal');
-        const overlay = document.getElementById('modal-overlay');
+        // Evento de clic en cajas
+        renderer.domElement.addEventListener('click', (event) => {
+        const mouse = new THREE.Vector2(
+            (event.clientX / window.innerWidth) * 2 - 1,
+            -(event.clientY / window.innerHeight) * 2 + 1
+        );
         
-        if (modal && overlay) {
-          modal.style.display = 'none';
-          overlay.style.display = 'none';
-          
-          if (selectedBox) {
-            selectedBox.material.emissive.setHex(0x000000);
-            selectedBox = null;
-          }
-        } else {
-          console.error("Elementos del modal no encontrados");
+        raycaster.setFromCamera(mouse, camera);
+        const intersects = raycaster.intersectObjects(boxes);
+        
+        if (intersects.length > 0) {
+            seleccionarCaja(intersects[0].object);
         }
-      }
     });
-  }
+    
+    // Evento para cerrar modal
+    document.getElementById('close-modal').addEventListener('click', cerrarModal);
+    
+    // Cerrar al hacer clic en el overlay
+    document.getElementById('modal-overlay').addEventListener('click', cerrarModal);
+    
+    // Cerrar con tecla ESC
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            cerrarModal();
+        }
+    });
+}
 
 
 
@@ -1007,49 +1135,50 @@ function inicializarRacks() {
     const distanciaEntreRacks = 3;
     let posicionZActual = config.margenAlrededor;
 
-    const racks = [
-        { posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 35, letra: 'A', dobleCara: false, numeroSecciones: 15 },
-    ];
+       // Obtener todos los racks únicos mencionados en initialData
+       const racksNecesarios = new Set();
+    initialData.forEach(item => {
+        if (item.id && item.id.match(/^[A-Z]\d{2}[A-Z]\d{2}$/)) {
+            racksNecesarios.add(item.id.charAt(0)); // Extraer la letra del rack
+        }
+    });
 
-    // Resto de los racks con diferentes cantidades de secciones
-    posicionZActual += 5 + distanciaEntreRacks;
-    racks.push({ posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 35, letra: 'B', dobleCara: true, numeroSecciones: 12 });
+    // Si no hay racks en los datos, usar uno por defecto (A)
+    if (racksNecesarios.size === 0) {
+        racksNecesarios.add('A');
+    }
 
-    posicionZActual += 5 + distanciaEntreRacks;
-    racks.push({ posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 35, letra: 'C', dobleCara: true, numeroSecciones: 10 });
+    console.log(`Creando racks: ${Array.from(racksNecesarios).join(', ')}`);
 
-    posicionZActual += 5 + distanciaEntreRacks;
-    racks.push({ posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 35, letra: 'D', dobleCara: true, numeroSecciones: 14 });
-
-    posicionZActual += 5 + distanciaEntreRacks;
-    racks.push({ posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 35, letra: 'E', dobleCara: true, numeroSecciones: 13 });
-
-    posicionZActual += 5 + distanciaEntreRacks + 5;
-
-    racks.push({ posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 35, letra: 'F', dobleCara: true, numeroSecciones: 12 });
-
-    posicionZActual += 5 + distanciaEntreRacks;
-    racks.push({ posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 35, letra: 'G', dobleCara: true, numeroSecciones: 10 });
-
-    posicionZActual += 5 + distanciaEntreRacks;
-    racks.push({ posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 35, letra: 'H', dobleCara: true, numeroSecciones: 11 });
-
-    posicionZActual += 5 + distanciaEntreRacks;
-    racks.push({ posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 35, letra: 'I', dobleCara: true, numeroSecciones: 9 });
-
-    posicionZActual += 5 + distanciaEntreRacks;
-    racks.push({ posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 35, letra: 'J', dobleCara: false, numeroSecciones: 8 });
-
-    // Crear cada rack usando la nueva lógica
-    racks.forEach((rackInfo) => {
-        crearRack(
-            rackInfo.posInicio,
-            rackInfo.longitud, 
-            rackInfo.letra,
-            8, // niveles
-            rackInfo.dobleCara,
-            rackInfo.numeroSecciones // nuevo parámetro para controlar secciones
-        );
+    const configRacks = {
+        'A': { posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 35, dobleCara: false, numeroSecciones: 15 },
+        'B': { posInicio: { x: config.primerRackX, z: posicionZActual += 5 + distanciaEntreRacks }, longitud: 35, dobleCara: true, numeroSecciones: 12 },
+        'C': { posInicio: { x: config.primerRackX, z: posicionZActual += 5 + distanciaEntreRacks }, longitud: 35, dobleCara: true, numeroSecciones: 10 },
+        'D': { posInicio: { x: config.primerRackX, z: posicionZActual += 5 + distanciaEntreRacks }, longitud: 35, dobleCara: true, numeroSecciones: 14 },
+        'E': { posInicio: { x: config.primerRackX, z: posicionZActual += 5 + distanciaEntreRacks }, longitud: 35, dobleCara: true, numeroSecciones: 13 },
+        'F': { posInicio: { x: config.primerRackX, z: posicionZActual += 5 + distanciaEntreRacks + 5 }, longitud: 35, dobleCara: true, numeroSecciones: 12 },
+        'G': { posInicio: { x: config.primerRackX, z: posicionZActual += 5 + distanciaEntreRacks }, longitud: 35, dobleCara: true, numeroSecciones: 10 },
+        'H': { posInicio: { x: config.primerRackX, z: posicionZActual += 5 + distanciaEntreRacks }, longitud: 35, dobleCara: true, numeroSecciones: 11 },
+        'I': { posInicio: { x: config.primerRackX, z: posicionZActual += 5 + distanciaEntreRacks }, longitud: 35, dobleCara: true, numeroSecciones: 9 },
+        'J': { posInicio: { x: config.primerRackX, z: posicionZActual += 5 + distanciaEntreRacks }, longitud: 35, dobleCara: false, numeroSecciones: 8 }
+    };
+       // Crear solo los racks necesarios
+       Array.from(racksNecesarios).forEach(letraRack => {
+        if (configRacks[letraRack]) {
+            const rackInfo = configRacks[letraRack];
+            crearRack(
+                rackInfo.posInicio,
+                rackInfo.longitud, 
+                letraRack,
+                8, // niveles
+                rackInfo.dobleCara,
+                rackInfo.numeroSecciones
+            );
+            // Actualizar posición Z para el próximo rack
+            posicionZActual = rackInfo.posInicio.z + 5 + distanciaEntreRacks;
+        } else {
+            console.warn(`No hay configuración para el rack ${letraRack}`);
+        }
     });
 }
 
@@ -1288,6 +1417,90 @@ function obtenerPosicionDesdeDatos(item) {
     };
 }
 
+
+// Función para crear etiquetas para cada caja
+function crearEtiquetaCaja(caja) {
+    const userData = caja.userData;
+    const id = userData.id;
+    
+    if (!id) return; // No crear etiqueta si no hay ID
+    
+    // Crear canvas para la etiqueta
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    
+    // Configurar tamaño del canvas
+    canvas.width = 256;
+    canvas.height = 128;
+    
+    // Dibujar fondo blanco con borde negro
+    context.fillStyle = '#FFFFFF';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    
+    context.strokeStyle = '#000000';
+    context.lineWidth = 8;
+    context.strokeRect(4, 4, canvas.width - 8, canvas.height - 8);
+    
+    // Configurar estilo de texto
+    context.fillStyle = '#000000';
+    context.font = 'bold 48px Arial';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    
+    // Dibujar el ID en el centro
+    context.fillText(id, canvas.width / 2, canvas.height / 2);
+    
+    // Crear textura desde el canvas
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    
+    // Crear material con la textura
+    const etiquetaMaterial = new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        side: THREE.DoubleSide
+    });
+
+
+    
+    
+    // Dimensiones de la etiqueta (ajustar según necesidad)
+    const etiquetaAncho = config.anchoCaja * 0.8;
+    const etiquetaAlto = config.anchoCaja * 0.6;
+    
+    // Crear geometría de la etiqueta
+    const etiquetaGeometry = new THREE.PlaneGeometry(etiquetaAncho, etiquetaAlto);
+    
+    // Crear las cuatro etiquetas (una para cada lado de la caja)
+    const crearEtiquetaLado = (rotY, posX, posZ) => {
+        const etiqueta = new THREE.Mesh(etiquetaGeometry, etiquetaMaterial);
+        etiqueta.rotation.y = rotY;
+        etiqueta.position.set(posX, 0, posZ);
+        return etiqueta;
+    };
+    
+    // Crear grupo para contener todas las etiquetas
+    const etiquetasGrupo = new THREE.Group();
+    
+    // Offset para que la etiqueta esté ligeramente separada de la caja
+    const offset = 0.01;
+    const halfAncho = config.anchoCaja / 2 + offset;
+    const halfProf = config.profundidadCaja / 2 + offset;
+    
+    // Crear etiquetas en los cuatro lados
+    etiquetasGrupo.add(crearEtiquetaLado(0, 0, halfProf)); // Frente
+    etiquetasGrupo.add(crearEtiquetaLado(Math.PI, 0, -halfProf)); // Atrás
+    etiquetasGrupo.add(crearEtiquetaLado(Math.PI / 2, halfAncho, 0)); // Derecha
+    etiquetasGrupo.add(crearEtiquetaLado(-Math.PI / 2, -halfAncho, 0)); // Izquierda
+    
+    // Añadir el grupo de etiquetas a la caja
+    caja.add(etiquetasGrupo);
+    
+    return etiquetasGrupo;
+}
+
+
 // Función modificada para crear cajas que guarda correctamente los IDs
 function crearCajasDesdeDatos(dataArray) {
     dataArray.forEach((item) => {
@@ -1313,6 +1526,7 @@ function crearCajasDesdeDatos(dataArray) {
         const id = item.id || generarIDDesdePosicion(rack, columna, nivel, palet, lado);
         
         // Guardamos todos los datos relevantes
+        // Guardamos todos los datos relevantes
         caja.userData = {
             id: id,
             rack: rack,
@@ -1320,8 +1534,14 @@ function crearCajasDesdeDatos(dataArray) {
             seccion: columna,
             palet: palet,
             lado: lado,
-            contenido: item.contenido || ""
+            contenido: item.contenido || "",
+            articulos: item.articulos || []
         };
+
+
+        
+        // Añadir etiqueta a la caja
+        crearEtiquetaCaja(caja);
 
         scene.add(caja);
         boxes.push(caja);
