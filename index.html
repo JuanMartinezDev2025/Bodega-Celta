@@ -635,7 +635,7 @@
     import { OrbitControls } from './orbitcontrols.js';
     import { FontLoader } from './FontLoader.js';
     import { TextGeometry } from './TextGeometry.js';
-    
+   import { PointerLockControls } from '/jsm/controls/PointerLockControls.js';
     // 1. PRIMERO DECLARAR LAS VARIABLES PRINCIPALES DE THREE.JS
     const scene = new THREE.Scene(); //Crear escena
   // Añadir estas configuraciones al inicializar el renderer
@@ -658,10 +658,38 @@
   camera.position.set(40, 35, 40); // Posición más elevada y alejada
   camera.lookAt(15, 5, 20); // Mirar hacia el centro del almacén
   // 3. CONTROLES Y LUCES
-    const controls = new OrbitControls(camera, renderer.domElement); //Controles de movimiento de la camara
-    controls.enableDamping = true; // Permitir suavizado de movimiento "se desliza un poco antes de soltar el clcik"
-    controls.dampingFactor = 0.05; // Que tan rapido se detiene el movimiento al soltar el click
-    controls.target.set(0, 3, 0); // Punto central donde la camara mira
+    // 3. CONTROLES Y LUCES
+    const orbitControls = new OrbitControls(camera, renderer.domElement); // Renombramos a orbitControls
+    orbitControls.enableDamping = true;
+    orbitControls.dampingFactor = 0.05;
+    orbitControls.target.set(0, 3, 0);
+
+    // Crear controles FPS
+    const fpsControls = new PointerLockControls(camera, renderer.domElement);
+    scene.add(fpsControls.getObject());
+
+    // Variable para alternar entre modos
+    let currentControls = orbitControls; // Comenzamos con orbitControls
+    let isFirstPerson = false;
+
+    // Configurar evento para alternar entre modos
+    document.addEventListener('keydown', (event) => {
+        if (event.code === 'KeyF') { // Usar tecla 'F' para alternar
+            toggleControls();
+        }
+    });
+
+    // Estados de movimiento (WASD)
+    const moveState = {
+        forward: false,
+        backward: false,
+        left: false,
+        right: false,
+        up: false,      // Nueva propiedad para movimiento hacia arriba (Espacio)
+        down: false     // Nueva propiedad para movimiento hacia abajo (Shift)
+    };
+    const moveSpeed = 0.2; // Velocidad de movimiento
+    const verticalSpeed = 0.15;  // Velocidad vertical (un poco más lenta que la horizontal)
 
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5); // Luz ambiental de todo el entorno
     scene.add(ambientLight); 
@@ -868,7 +896,8 @@ function mostrarModalCaja(caja) {
     overlay.style.display = 'block';
     
     // Desactivar controles de la cámara mientras el modal está abierto
-    controls.enabled = false;
+    orbitControls.enabled = true;
+
 }
 
 // Función para actualizar etiquetas existentes (por ejemplo, si cambia el ID)
@@ -907,6 +936,18 @@ function setupInteraccion() {
     const raycaster = new THREE.Raycaster(); // Reutilizar la misma instancia
     const mouse = new THREE.Vector2(); // Reutilizar este vector
     
+    // Agrega esto en tu init() o setupInteraccion()
+      const modeIndicator = document.createElement('div');
+      modeIndicator.style.position = 'fixed';
+      modeIndicator.style.bottom = '20px';
+      modeIndicator.style.right = '20px';
+      modeIndicator.style.backgroundColor = 'rgba(0,0,0,0.7)';
+      modeIndicator.style.color = 'white';
+      modeIndicator.style.padding = '10px';
+      modeIndicator.style.borderRadius = '5px';
+      modeIndicator.style.zIndex = '1000';
+      modeIndicator.textContent = 'Modo: Órbita (Presiona F para cambiar)';
+      document.body.appendChild(modeIndicator);
     // 3. Primer Evento de clic (optimizado)
     renderer.domElement.addEventListener('click', (event) => {
       // Reutilizar el vector mouse
@@ -946,6 +987,31 @@ function setupInteraccion() {
         }
     });
     
+
+    // Event listeners para movimiento WASD
+    document.addEventListener('keydown', (event) => {
+        if (!isFirstPerson) return; // Solo funciona en modo FPS
+        
+        switch (event.code) {
+            case 'KeyW': moveState.forward = true; break;
+            case 'KeyA': moveState.left = true; break;
+            case 'KeyS': moveState.backward = true; break;
+            case 'KeyD': moveState.right = true; break;
+            case 'Space': moveState.up = true; break;      // Espacio para subir
+            case 'ShiftLeft': moveState.down = true; break; // Shift izquierdo para bajar
+        }
+    });
+
+    document.addEventListener('keyup', (event) => {
+        switch (event.code) {
+            case 'KeyW': moveState.forward = false; break;
+            case 'KeyA': moveState.left = false; break;
+            case 'KeyS': moveState.backward = false; break;
+            case 'KeyD': moveState.right = false; break;
+            case 'Space': moveState.up = false; break;
+            case 'ShiftLeft': moveState.down = false; break;
+        }
+    });
     // Evento para cerrar modal
     document.getElementById('close-modal').addEventListener('click', cerrarModal);
     
@@ -1066,8 +1132,8 @@ function createGrid() {
 
     camera.position.set(centerX - 35, 50, centerZ + 55);
     camera.lookAt(centerX, 5, centerZ);
-    controls.target.set(centerX, 3, centerZ);
-    controls.update();
+    orbitControls.target.set(centerX, 3, centerZ);
+    orbitControls.update();
 }
 
 
@@ -1986,9 +2052,8 @@ function verificarPosicionesID(rackLetra) {
         centerZ + distancia * 0.7
       );
       camera.lookAt(centerX, rackData.alturaRack * 0.5, centerZ);
-      controls.target.set(centerX, rackData.alturaRack * 0.5, centerZ);
-      controls.update();
-
+     orbitControls.target.set(centerX, 3, centerZ);
+      orbitControls.update();
        
 
     }
@@ -2738,7 +2803,29 @@ window.analizarOcupacionRacks = calcularOcupacionRacks;
 // Variable global para contar frames
 let frameCount = 0;
 
-
+// Actualiza la función toggleControls para cambiar el indicador
+function toggleControls() {
+    isFirstPerson = !isFirstPerson;
+    
+    if (isFirstPerson) {
+        // Cambiar a FPS
+        orbitControls.enabled = false;
+        fpsControls.lock();
+        currentControls = fpsControls;
+        camera.position.set(10, 1.6, 10); // Altura de persona (~1.6m)
+        modeIndicator.textContent = 'Modo: Primera Persona (WASD para mover, F para cambiar)';
+    } else {
+        // Cambiar a Orbit
+        fpsControls.unlock();
+        orbitControls.enabled = true;
+        currentControls = orbitControls;
+        camera.position.set(40, 35, 40);
+        camera.lookAt(15, 5, 20);
+        modeIndicator.textContent = 'Modo: Órbita (Presiona F para cambiar)';
+    }
+    
+    needsRender = true;
+}
 // Optimización para el renderizado - mantener esto como estaba
 function init() {
     actualizarConfiguracion();
@@ -2778,23 +2865,62 @@ let needsRender = true;
 function animate() {
     requestAnimationFrame(animate);
 
-    // Simplemente renderiza si needsRender está activado
+    // Mover la cámara en modo FPS
+    if (isFirstPerson && fpsControls.isLocked) {
+        const camera = fpsControls.getObject();
+        const direction = new THREE.Vector3();
+        
+        // Obtener la dirección de la cámara (hacia donde mira)
+        camera.getWorldDirection(direction);
+        direction.y = 0; // Mantener movimiento en plano horizontal
+        direction.normalize();
+        
+        // Calcular dirección derecha (para movimiento lateral)
+        const right = new THREE.Vector3();
+        right.crossVectors(new THREE.Vector3(0, 1, 0), direction).normalize();
+        
+                // Movimiento vertical (Space/Shift)
+        if (moveState.up) camera.position.y += verticalSpeed;
+        if (moveState.down) camera.position.y -= verticalSpeed;
+        // Aplicar movimiento según teclas presionadas
+        if (moveState.forward) {
+            camera.position.addScaledVector(direction, moveSpeed);
+        }
+        if (moveState.backward) {
+            camera.position.addScaledVector(direction, -moveSpeed);
+        }
+        if (moveState.left) {
+            camera.position.addScaledVector(right, -moveSpeed);
+        }
+        if (moveState.right) {
+            camera.position.addScaledVector(right, moveSpeed);
+        }
+        
+        needsRender = true;
+    } else if (!isFirstPerson && frameCount % 3 === 0) {
+        // Actualizar controles de órbita cada 3 frames
+        orbitControls.update();
+        needsRender = true;
+    }
+
     if (needsRender) {
         renderer.render(scene, camera);
         needsRender = false;
     }
 
-    // Siempre actualizar controles cada ciertos frames
-    if (frameCount % 3 === 0) {
-        controls.update();
-    }
     frameCount++;
 }
 
+// Event listeners para ambos controles
+orbitControls.addEventListener('change', () => {
+    if (!isFirstPerson) needsRender = true;
+});
 
-// Marcar como necesario renderizar cuando hay interacción
-controls.addEventListener('change', () => {
-    needsRender = true;
+// Para FPS controls, puedes agregar más eventos según sea necesario
+document.addEventListener('click', () => {
+    if (isFirstPerson && !fpsControls.isLocked) {
+        fpsControls.lock();
+    }
 });
 
 
