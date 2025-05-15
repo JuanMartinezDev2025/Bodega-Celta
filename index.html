@@ -8,7 +8,20 @@
     body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; }
     /*canvas para renderizar*/
     canvas { display: block; }
-  
+      .rack-selector {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      z-index: 100;
+      background: rgba(255,255,255,0.8);
+      padding: 10px;
+      border-radius: 5px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+    .rack-selector select, .rack-selector button {
+      padding: 5px 10px;
+      margin: 5px 0;
+    }
 
     
     /* Estilo para el overlay */
@@ -22,6 +35,8 @@
       background-color: rgba(0,0,0,0.5);
       z-index: 1000;
     }
+
+
 
     /* Botones del modal */
     .form-buttons {
@@ -320,6 +335,163 @@
   font-weight: bold;
   color: #0d47a1;
 }
+
+ .filters-container {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    z-index: 1000;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: flex-end;
+    max-width: 90%;
+  }
+
+  .filter-group {
+    display: flex;
+    flex-direction: column;
+    min-width: 150px;
+  }
+
+  .filter-group label {
+    margin-bottom: 5px;
+    font-weight: 500;
+    font-size: 14px;
+  }
+
+  .rack-selector {
+    display: flex;
+    flex-direction: column;
+  }
+/* Estilos para la sección de artículos */
+.articulos-container {
+  margin-top: 25px;
+  width: 100%;
+}
+
+.articulos-container h4 {
+  margin-bottom: 15px;
+  color: #2196f3;
+  font-size: 18px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 8px;
+}
+
+.tabla-articulos-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  margin-bottom: 20px;
+  border-radius: 6px;
+  box-shadow: 0 1px 5px rgba(0,0,0,0.1);
+}
+
+#tabla-articulos {
+  width: 100%;
+  border-collapse: collapse;
+  border-spacing: 0;
+  font-size: 14px;
+}
+
+#tabla-articulos th {
+  background-color: #2196f3;
+  color: white;
+  padding: 12px 15px;
+  text-align: left;
+  position: sticky;
+  top: 0;
+  white-space: nowrap;
+}
+
+#tabla-articulos td {
+  padding: 10px 15px;
+  border-bottom: 1px solid #ddd;
+}
+
+#tabla-articulos tr:nth-child(even) {
+  background-color: #f8f8f8;
+}
+
+#tabla-articulos tr:hover {
+  background-color: #e6f7ff;
+  transition: background-color 0.2s;
+}
+
+/* Ajustes para dispositivos móviles */
+@media (max-width: 768px) {
+  .tabla-articulos-wrapper {
+    margin: 0 -10px;
+    width: calc(100% + 20px);
+  }
+  
+  #tabla-articulos th,
+  #tabla-articulos td {
+    padding: 8px 10px;
+    font-size: 13px;
+  }
+  
+  .articulos-container h4 {
+    text-align: center;
+  }
+}
+
+/* Estilos para el botón de cerrar */
+#box-modal #close-modal {
+  margin-top: 15px;
+  display: block;
+  width: 120px;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 10px 0;
+}
+  select {
+    padding: 8px 12px;
+    border-radius: 4px;
+    border: 1px solid #ddd;
+    background-color: white;
+    font-size: 14px;
+  }
+
+  button {
+    padding: 8px 16px;
+    border-radius: 4px;
+    border: none;
+    background-color: #2196F3;
+    color: white;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.2s;
+  }
+
+  button:hover {
+    background-color: #0b7dda;
+  }
+
+  .reset-btn {
+    background-color: #f44336;
+    align-self: flex-end;
+    height: fit-content;
+  }
+
+  .reset-btn:hover {
+    background-color: #d32f2f;
+  }
+
+  #resumen-filtrado {
+    position: fixed;
+    top: 80px;
+    left: 10px;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 8px 15px;
+    border-radius: 4px;
+    font-size: 14px;
+    z-index: 1000;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.1);
+  }
 /* Media queries para responsividad */
 @media (max-width: 768px) {
  
@@ -343,6 +515,24 @@
     margin: 10px;
     order: 4;
   }
+
+  
+
+   .filters-container {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    
+    .filter-group, .rack-selector {
+      min-width: 100%;
+    }
+    
+    #resumen-filtrado {
+      top: auto;
+      bottom: 10px;
+      left: 10px;
+      right: 10px;
+    }
 }
   </style>
 </head>
@@ -377,13 +567,68 @@
         <span id="modal-box-pallet"></span>
       </div>
     </div>
+     <!-- Nueva sección de tabla para los artículos -->
+  <div class="articulos-container">
+    <h4>Artículos del Palet</h4>
+    <div class="tabla-articulos-wrapper">
+      <table id="tabla-articulos">
+        <thead>
+          <tr>
+            <th>Código</th>
+            <th>Nombre</th>
+            <th>Cantidad</th>
+            <th>Lote</th>
+            <th>Cliente</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody id="articulos-tbody">
+          <!-- Aquí se insertarán dinámicamente las filas de artículos -->
+        </tbody>
+      </table>
+    </div>
+  </div>
     
     <button id="close-modal">Cerrar</button>
   </div>
   
   <div id="modal-overlay" class="overlay"></div>
 
-
+<div class="rack-selector">
+  <label for="rack-filter">Filtrar por Rack:</label>
+  <select id="rack-filter">
+    <option value="all">Todos los racks</option>
+    <option value="A">Rack A</option>
+    <option value="B">Rack B</option>
+    <option value="C">Rack C</option>
+    <option value="D">Rack D</option>
+    <option value="E">Rack E</option>
+    <option value="F">Rack F</option>
+    <option value="G">Rack G</option>
+    <option value="H">Rack H</option>
+    <option value="I">Rack I</option>
+    <option value="J">Rack J</option>
+  </select>
+   <!-- Añade estos nuevos selectores -->
+  <label for="cliente-filter">Cliente:</label>
+  <select id="cliente-filter">
+    <option value="">Todos los clientes</option>
+  </select>
+  
+  <label for="articulo-filter">Artículo:</label>
+  <select id="articulo-filter">
+    <option value="">Todos los artículos</option>
+  </select>
+  
+  <label for="lote-filter">Lote:</label>
+  <select id="lote-filter">
+    <option value="">Todos los lotes</option>
+  </select>
+  
+  <button id="focus-rack">Enfocar Rack</button>
+  <button id="reset-filters">Resetear Filtros</button>
+  
+</div>
     <!-- Importar Three.js y OrbitControls -->
   <script type="module">
     import * as THREE from './three.module.js';
@@ -480,33 +725,57 @@ function asignarLetraRack(rackIndex) {
     return String.fromCharCode(65 + Math.min(9, Math.max(0, rackIndex)));
 }
 
-// Ejemplo de datos simplificados donde el ID ya contiene la información del lado
 const initialData = [
   {
-    id: "A03F03",
-    contenido: "Componentes electrónicos",
-    rack: "B",
-    seccion: 14,
-    nivel: 0,
-    palet: 0,
-    lado: "A",
+    id: "A04E02",
+    rack: "A",
+    cliente: "Farmacorp", // Cliente principal de la caja
     articulos: [
-        { codigo: "RES-100", cantidad: 50, lote: "L2023-05", estado: "Nuevo" },
-        { codigo: "CAP-220", cantidad: 30, lote: "L2023-02", estado: "Nuevo" }
+      { 
+        codigo: "RES-100", 
+        nombre: "Resistencias 100Ω",
+        cantidad: 50, 
+        lote: "L2023-05", 
+        cliente: "Farmacorp" // Debe coincidir con cliente de caja
+      },
+      { 
+        codigo: "CAP-220", 
+        nombre: "Capacitores 220μF",
+        cantidad: 30, 
+        lote: "L2023-02",
+        cliente: "Farmacorp"
+      }
     ]
-},
-  {
-    id: "B15A01",  // Rack D, Sección 25 (cara trasera), Nivel A, Palet 1
-    contenido: "Material electrónico",
-    color: 0x2196f3 // color azul
   },
   {
-    id: "D15A01",  // Rack D, Sección 25 (cara trasera), Nivel A, Palet 1
-    contenido: "Material electrónico",
-    color: 0x2196f3 // color azul
+    id: "A03E02",
+    rack: "A",
+    cliente: "FarmaTec", // Nombre de cliente consistente
+    articulos: [
+      { 
+        codigo: "RES-101", 
+        nombre: "Resistencias Vital 100Ω",
+        cantidad: 50, 
+        lote: "L2023-05",
+        cliente: "FarmaTec"
+      }
+    ]
+  },
+  {
+    id: "B04B03",
+    rack: "B",
+    cliente: "ElectroTech",
+    articulos: [
+      {
+        codigo: "LED-RED",
+        nombre: "LED Rojo 5mm",
+        cantidad: 100,
+        lote: "L2023-08",
+        cliente: "ElectroTech"
+      }
+    ]
   }
 ];
-
 // Función para seleccionar caja y mostrar modal
 function seleccionarCaja(caja) {
     // Quitar selección anterior si existe
@@ -524,7 +793,8 @@ function seleccionarCaja(caja) {
     needsRender = true;
 }
 
-// Función para mostrar el modal
+
+// Modificación a la función mostrarModalCaja para incluir los artículos en la tabla
 function mostrarModalCaja(caja) {
     const modal = document.getElementById('box-modal');
     const overlay = document.getElementById('modal-overlay');
@@ -538,24 +808,61 @@ function mostrarModalCaja(caja) {
     document.getElementById('modal-box-level').textContent = String.fromCharCode(65 + userData.nivel) || 'N/A';
     document.getElementById('modal-box-pallet').textContent = (userData.palet + 1) || 'N/A';
     
-
-
-    // Mostrar artículos si existen
-    const articulosContainer = document.getElementById('modal-box-items');
-    if (articulosContainer) {
-        if (userData.articulos && userData.articulos.length > 0) {
-            let articulosHTML = '<h4>Artículos:</h4><ul>';
-            userData.articulos.forEach(articulo => {
-                articulosHTML += `<li>Código: ${articulo.codigo} - Cantidad: ${articulo.cantidad} - Lote: ${articulo.lote} - Estado: ${articulo.estado}</li>`;
-            });
-            articulosHTML += '</ul>';
-            articulosContainer.innerHTML = articulosHTML;
-            articulosContainer.style.display = 'block';
-        } else {
-            articulosContainer.innerHTML = '';
-            articulosContainer.style.display = 'none';
-        }
+    // Poblar la tabla de artículos
+    const articulosTbody = document.getElementById('articulos-tbody');
+    articulosTbody.innerHTML = ''; // Limpiar contenido anterior
+    
+    // Aquí usamos los datos de initialData para encontrar los artículos correspondientes a esta caja
+    const datosCaja = initialData.find(item => item.id === userData.id);
+    
+    if (datosCaja && datosCaja.articulos && datosCaja.articulos.length > 0) {
+        // Hay artículos para mostrar desde initialData
+        datosCaja.articulos.forEach(articulo => {
+            const row = document.createElement('tr');
+            
+            // Crear celdas para cada propiedad del artículo
+            const codigoCell = document.createElement('td');
+            codigoCell.textContent = articulo.codigo || 'N/A';
+            
+            const nombreCell = document.createElement('td');
+            nombreCell.textContent = articulo.nombre || 'N/A';
+            
+            const cantidadCell = document.createElement('td');
+            cantidadCell.textContent = articulo.cantidad || '0';
+            
+            const loteCell = document.createElement('td');
+            loteCell.textContent = articulo.lote || 'N/A';
+            
+            const clienteCell = document.createElement('td');
+            clienteCell.textContent = articulo.cliente || 'N/A';
+            
+            // Estado (si existe)
+            const estadoCell = document.createElement('td');
+            estadoCell.textContent = articulo.estado || 'Activo';
+            
+            // Añadir celdas a la fila
+            row.appendChild(codigoCell);
+            row.appendChild(nombreCell);
+            row.appendChild(cantidadCell);
+            row.appendChild(loteCell);
+            row.appendChild(clienteCell);
+            row.appendChild(estadoCell);
+            
+            // Añadir fila a la tabla
+            articulosTbody.appendChild(row);
+        });
+    } else {
+        // No hay artículos, mostrar fila vacía
+        const emptyRow = document.createElement('tr');
+        const emptyCell = document.createElement('td');
+        emptyCell.textContent = 'No hay artículos para mostrar';
+        emptyCell.colSpan = 6; // Expandir a través de todas las columnas
+        emptyCell.style.textAlign = 'center';
+        emptyCell.style.padding = '20px';
+        emptyRow.appendChild(emptyCell);
+        articulosTbody.appendChild(emptyRow);
     }
+    
     // Mostrar modal
     modal.style.display = 'block';
     overlay.style.display = 'block';
@@ -594,43 +901,13 @@ function cerrarModal() {
     // Reactivar controles de la cámara
     controls.enabled = true;
 }
-    function setupInteraccion() {
+
+function setupInteraccion() {
     // 1. Variables para optimización
-    let lastMouseMove = 0;
-    const mouseMoveThrottle = 50; // ms (más fluido que 100ms pero aún optimizado)
     const raycaster = new THREE.Raycaster(); // Reutilizar la misma instancia
     const mouse = new THREE.Vector2(); // Reutilizar este vector
-
-    // 2. Evento de movimiento del mouse (optimizado con throttle)
-    renderer.domElement.addEventListener('mousemove', _.throttle((event) => {
-      const now = Date.now();
-      if (now - lastMouseMove < mouseMoveThrottle) return;
-      lastMouseMove = now;
-      
-      const gridPos = getGridPositionFromClick(event);
-      
-      if (gridPos) {
-        // Calcular posición del resaltado (código optimizado)
-        const gridOffsetX = -config.gridWidth / 2;
-        const gridOffsetZ = -config.gridDepth / 2;
-        const posX = gridOffsetX + (gridPos.x * config.cellSizeX) + config.cellSizeX/2;
-        const posZ = gridOffsetZ + (gridPos.z * config.cellSizeZ) + config.cellSizeZ/2;
-        
-        // Actualizar posición (evitando operaciones innecesarias)
-        if (!hoverHighlight.visible || 
-          hoverHighlight.position.x !== posX || 
-          hoverHighlight.position.z !== posZ) {
-          hoverHighlight.position.set(posX, 0.01, posZ);
-          hoverHighlight.visible = true;
-        }
-      } else if (hoverHighlight.visible) {
-        hoverHighlight.visible = false;
-      }
-      
-      needsRender = true;
-    }, mouseMoveThrottle));
-
-    // 3. Evento de clic (optimizado)
+    
+    // 3. Primer Evento de clic (optimizado)
     renderer.domElement.addEventListener('click', (event) => {
       // Reutilizar el vector mouse
       mouse.set(
@@ -652,10 +929,10 @@ function cerrarModal() {
       if (intersects.length > 0) {
         seleccionarCaja(intersects[0].object);
       }
-      // Nota: Eliminé el else ya que no hacía nada
     });
-        // Evento de clic en cajas
-        renderer.domElement.addEventListener('click', (event) => {
+
+    // Segundo Evento de clic en cajas
+    renderer.domElement.addEventListener('click', (event) => {
         const mouse = new THREE.Vector2(
             (event.clientX / window.innerWidth) * 2 - 1,
             -(event.clientY / window.innerHeight) * 2 + 1
@@ -684,8 +961,7 @@ function cerrarModal() {
 }
 
 
-
-
+//Calcular el bounding box de los racks (ancho y profundidad) para ajustar el grid
   function calcularLimitesRacks() {
     const racks = scene.children.filter(obj => obj.userData?.tipoObjeto === 'rack');
     
@@ -1500,6 +1776,13 @@ function crearEtiquetaCaja(caja) {
     return etiquetasGrupo;
 }
 
+// Configuración de colores según estados y códigos
+const COLORES = {
+  DISPONIBLE: 0x4CAF50,    // Verde
+  SIN_DISPONIBILIDAD: 0xF44336, // Rojo
+  COD_AREA_ESPECIAL: 0x9C27B0,  // Verde más intenso para PU01P001
+  DEFAULT: 0x2196F3       // Azul por defecto
+};
 
 // Función modificada para crear cajas que guarda correctamente los IDs
 function crearCajasDesdeDatos(dataArray) {
@@ -1512,9 +1795,29 @@ function crearCajasDesdeDatos(dataArray) {
             config.alturaCaja, 
             config.profundidadCaja
         );
+
+           // Determinar color basado en estado y código de área
+       // LÓGICA CORREGIDA PARA ASIGNACIÓN DE COLORES:
+        let color;
+        
+        // 1. Primero verificar el código de área especial
+        if (item.cod_area === "PU01P001") {
+            color = COLORES.COD_AREA_ESPECIAL;
+        } 
+        // 2. Si no, verificar el estado
+        else if (item.estado === "sin disponibilidad") {
+            color = COLORES.SIN_DISPONIBILIDAD;
+        }
+        else if (item.estado === "disponible") {
+            color = COLORES.DISPONIBLE;
+        }
+        // 3. Finalmente, usar color específico o default
+        else {
+            color = item.color || COLORES.DEFAULT;
+        }
         
         const material = new THREE.MeshStandardMaterial({
-            color: item.color || 0x4caf50,
+            color: color,
             metalness: 0.3,
             roughness: 0.5
         });
@@ -1535,7 +1838,9 @@ function crearCajasDesdeDatos(dataArray) {
             palet: palet,
             lado: lado,
             contenido: item.contenido || "",
-            articulos: item.articulos || []
+            articulos: item.articulos || [],
+            estado: item.estado || "disponible", // Valor por defecto
+            cod_area: item.cod_area || ""        // Valor por defecto
         };
 
 
@@ -1548,6 +1853,39 @@ function crearCajasDesdeDatos(dataArray) {
     });
 }
 
+// Función para actualizar el estado de una caja
+function actualizarEstadoCaja(idCaja, nuevoEstado, nuevoCodArea = null) {
+    const caja = boxes.find(b => b.userData.id === idCaja);
+    
+    if (caja) {
+        // Actualizar datos
+        caja.userData.estado = nuevoEstado;
+        if (nuevoCodArea !== null) {
+            caja.userData.cod_area = nuevoCodArea;
+        }
+        
+        // Actualizar color
+        let color;
+        
+        if (caja.userData.cod_area === "PU01P001") {
+            color = COLORES.COD_AREA_ESPECIAL;
+        } else if (nuevoEstado === "disponible") {
+            color = COLORES.DISPONIBLE;
+        } else if (nuevoEstado === "sin disponibilidad") {
+            color = COLORES.SIN_DISPONIBILIDAD;
+        } else {
+            color = COLORES.DEFAULT;
+        }
+        
+        caja.material.color.setHex(color);
+        
+        // Actualizar etiqueta si es necesario
+        actualizarEtiquetaCaja(caja);
+        
+        return true;
+    }
+    return false;
+}
 
 // Función auxiliar para verificar IDs y posiciones
 function verificarPosicionesID(rackLetra) {
@@ -1590,6 +1928,813 @@ function verificarPosicionesID(rackLetra) {
     console.log(`\nTotal de secciones numeradas: ${totalPosiciones}`);
 }
 
+
+  // Función para filtrar racks por letra
+  function filtrarRacks(letraRack) {
+    scene.children.forEach(obj => {
+      if (obj.userData?.tipoObjeto === 'rack') {
+        // Mostrar/ocultar racks
+        obj.visible = (letraRack === 'all' || obj.userData.letra === letraRack);
+        
+        // Mostrar/ocultar cajas asociadas a este rack
+        boxes.forEach(caja => {
+          if (caja.userData.rack === obj.userData.letra) {
+            caja.visible = obj.visible;
+          }
+        });
+      }
+    });
+
+  
+    
+    needsRender = true;
+  }
+
+  // Función para enfocar el rack seleccionado con la cámara
+  function enfocarRack(letraRack) {
+    if (letraRack === 'all') {
+      // Vista general
+      const centerX = 15;
+      const centerZ = 20;
+      camera.position.set(40, 35, 40);
+      camera.lookAt(centerX, 5, centerZ);
+      controls.target.set(centerX, 3, centerZ);
+      controls.update();
+      return;
+    }
+    
+    const rack = scene.children.find(obj => 
+      obj.userData?.tipoObjeto === 'rack' && 
+      obj.userData?.letra === letraRack
+    );
+    
+    if (rack) {
+      const rackData = rack.userData;
+      const centerX = rack.position.x;
+      const centerZ = rack.position.z;
+      
+      // Calcular distancia de la cámara basada en el tamaño del rack
+      const distancia = Math.max(
+        rackData.anchura * 1.5,
+        rackData.profundidad * 3,
+        15
+      );
+      
+      camera.position.set(
+        centerX - distancia * 0.7,
+        rackData.alturaRack * 1.2,
+        centerZ + distancia * 0.7
+      );
+      camera.lookAt(centerX, rackData.alturaRack * 0.5, centerZ);
+      controls.target.set(centerX, rackData.alturaRack * 0.5, centerZ);
+      controls.update();
+
+       
+
+    }
+    
+    needsRender = true;
+  }
+
+
+
+// Función para aplicar los filtros a las cajas visibles
+function filtrarCajas(filtros) {
+  const { rack, cliente, articulo, lote } = filtros;
+  
+  boxes.forEach(caja => {
+    const userData = caja.userData;
+    let visible = true;
+    
+    // Filtro por rack
+    if (rack && rack !== 'all') {
+      visible = visible && (userData.rack === rack);
+    }
+    
+    if (!visible) {
+      caja.visible = false;
+      return;
+    }
+    
+    // Filtro por cliente
+    if (cliente) {
+      const clienteMatch = userData.cliente === cliente || 
+        (userData.articulos && userData.articulos.some(a => a.cliente === cliente));
+      visible = visible && clienteMatch;
+    }
+    
+    // Filtro por artículo
+    if (articulo) {
+      const articuloMatch = userData.articulos && 
+                           userData.articulos.some(a => a.codigo === articulo);
+      visible = visible && articuloMatch;
+    }
+    
+    // Filtro por lote
+    if (lote) {
+      const loteMatch = userData.articulos && 
+                      userData.articulos.some(a => a.lote === lote);
+      visible = visible && loteMatch;
+    }
+    
+    caja.visible = visible;
+  });
+  
+  // Actualizar visibilidad de los racks según cajas visibles
+  scene.children.forEach(obj => {
+    if (obj.userData?.tipoObjeto === 'rack') {
+      // Si se ha seleccionado un rack específico, solo mostrar ese
+      if (rack !== 'all') {
+        obj.visible = obj.userData.letra === rack;
+      } else {
+        // Si es "todos", mostrar rack si tiene al menos una caja visible
+        obj.visible = boxes.some(caja => 
+          caja.visible && caja.userData.rack === obj.userData.letra
+        );
+      }
+    }
+  });
+  
+  needsRender = true;
+}
+
+// Función para filtrar por cliente
+function filtrarPorCliente(cliente) {
+    const filtros = obtenerFiltrosActuales();
+    filtros.cliente = cliente || null;
+    filtrarCajas(filtros);
+}
+
+// Función para filtrar por artículo
+function filtrarPorArticulo(articulo) {
+    const filtros = obtenerFiltrosActuales();
+    filtros.articulo = articulo || null;
+    filtrarCajas(filtros);
+}
+
+// Función para filtrar por lote
+function filtrarPorLote(lote) {
+    const filtros = obtenerFiltrosActuales();
+    filtros.lote = lote || null;
+    filtrarCajas(filtros);
+}
+
+// Función para obtener los filtros actuales del UI
+function obtenerFiltrosActuales() {
+  return {
+    rack: document.getElementById('rack-filter').value,
+    cliente: document.getElementById('cliente-filter').value || null,
+    articulo: document.getElementById('articulo-filter').value || null,
+    lote: document.getElementById('lote-filter').value || null
+  };
+}
+
+// Función principal para extraer datos de filtros en cascada
+function extraerDatosFiltros(filtroRack = 'all', filtroCliente = null, filtroArticulo = null) {
+  const clientes = new Set();
+  const articulos = new Set();
+  const lotes = new Set();
+
+  initialData.forEach(caja => {
+    // Solo procesar cajas del rack seleccionado (o todas si es 'all')
+    if (filtroRack === 'all' || caja.rack === filtroRack) {
+      
+      // Si no hay filtro de cliente o coincide con el cliente de la caja
+      const clienteCoincide = !filtroCliente || caja.cliente === filtroCliente;
+      
+      // Si coincide el cliente principal de la caja, lo añadimos siempre
+      if (caja.cliente) {
+        clientes.add(caja.cliente);
+      }
+      
+      // Procesar artículos
+      if (caja.articulos && caja.articulos.length > 0) {
+        caja.articulos.forEach(articulo => {
+          // Añadir cliente del artículo si existe (para el nivel de clientes)
+          if (articulo.cliente) {
+            clientes.add(articulo.cliente);
+          }
+          
+          // Para los artículos, comprobamos si coincide con el filtro de cliente (si existe)
+          const articuloClienteCoincide = !filtroCliente || 
+                                         caja.cliente === filtroCliente || 
+                                         articulo.cliente === filtroCliente;
+          
+          // Solo añadir artículos si coincide con el filtro de cliente
+          if (articuloClienteCoincide && articulo.codigo) {
+            articulos.add(`${articulo.codigo} - ${articulo.nombre || articulo.codigo}`);
+          }
+          
+          // Para los lotes, comprobamos si coincide con el filtro de cliente y artículo
+          const articuloCodigo = articulo.codigo;
+          const loteClienteCoincide = articuloClienteCoincide;
+          const loteArticuloCoincide = !filtroArticulo || articuloCodigo === filtroArticulo;
+          
+          // Solo añadir lotes si coincide con cliente y artículo
+          if (loteClienteCoincide && loteArticuloCoincide && articulo.lote) {
+            lotes.add(articulo.lote);
+          }
+        });
+      }
+    }
+  });
+
+  return {
+    clientes: Array.from(clientes).sort(),
+    articulos: Array.from(articulos).sort(),
+    lotes: Array.from(lotes).sort()
+  };
+}
+
+
+// Actualizar dinámicamente los selectores de filtros en cascada
+function actualizarSelectores() {
+  const filtros = obtenerFiltrosActuales();
+  
+  // Extraer datos considerando la cascada de filtros
+  const { clientes, articulos, lotes } = extraerDatosFiltros(
+    filtros.rack, 
+    filtros.cliente, 
+    filtros.articulo
+  );
+
+  // Actualizar cada selector manteniendo su valor si sigue siendo válido
+  actualizarSelector('cliente-filter', clientes, 'Todos los clientes', filtros.cliente);
+  actualizarSelector('articulo-filter', articulos, 'Todos los artículos', filtros.articulo, true);
+  actualizarSelector('lote-filter', lotes, 'Todos los lotes', filtros.lote);
+}
+
+
+
+
+// Función mejorada para actualizar un selector manteniendo su valor si es válido
+function actualizarSelector(idSelector, opciones, textoDefault, valorActual, esArticulo = false) {
+  const selector = document.getElementById(idSelector);
+  const valorAnterior = selector.value;
+
+  // Guardar el valor actual para comparar después
+  selector.innerHTML = `<option value="">${textoDefault}</option>`;
+
+  opciones.forEach(opcion => {
+    let valor, texto;
+
+    if (esArticulo && opcion.includes(' - ')) {
+      const [codigo, nombre] = opcion.split(' - ');
+      valor = codigo;
+      texto = opcion; // Mostramos código y nombre
+    } else {
+      valor = opcion;
+      texto = opcion;
+    }
+
+    selector.innerHTML += `<option value="${valor}">${texto}</option>`;
+  });
+
+  // Intentar mantener el valor anterior si sigue siendo válido
+  if (valorAnterior && opciones.some(opcion => {
+    if (esArticulo && opcion.includes(' - ')) {
+      return opcion.startsWith(valorAnterior + ' -');
+    }
+    return opcion === valorAnterior;
+  })) {
+    selector.value = valorAnterior;
+  } else if (valorActual && opciones.some(opcion => {
+    if (esArticulo && opcion.includes(' - ')) {
+      return opcion.startsWith(valorActual + ' -');
+    }
+    return opcion === valorActual;
+  })) {
+    // Si el valor actual es válido, usarlo
+    selector.value = valorActual;
+  } else {
+    // Si no es válido, limpiar la selección
+    selector.value = '';
+  }
+}
+
+// Función para cargar los selectores iniciales
+function cargarSelectoresDesdeInitialData() {
+  // Extraer todos los datos sin filtros
+  const { clientes, articulos, lotes } = extraerDatosFiltros();
+  
+  // Llenar selectores con datos iniciales
+  actualizarSelector('cliente-filter', clientes, 'Todos los clientes');
+  actualizarSelector('articulo-filter', articulos, 'Todos los artículos', null, true);
+  actualizarSelector('lote-filter', lotes, 'Todos los lotes');
+}
+
+
+
+
+// Función para aplicar los filtros
+function aplicarFiltros() {
+  const filtros = obtenerFiltrosActuales();
+  filtrarCajas(filtros);
+  actualizarEstadisticasFiltradas(filtros);
+}
+
+
+// Configurar eventos para los controles UI
+function setupRackFilterUI() {
+  const selectRack = document.getElementById('rack-filter');
+  const focusBtn = document.getElementById('focus-rack');
+  const selectCliente = document.getElementById('cliente-filter');
+  const selectArticulo = document.getElementById('articulo-filter');
+  const selectLote = document.getElementById('lote-filter');
+  const resetBtn = document.getElementById('reset-filters');
+
+  // Cargar opciones de filtro iniciales
+  cargarSelectoresDesdeInitialData();
+
+  // Evento para el filtro de rack
+  selectRack.addEventListener('change', () => {
+    // Al cambiar el rack, actualizamos todos los filtros en cascada
+    // y limpiamos los otros selectores
+    selectCliente.value = '';
+    selectArticulo.value = '';
+    selectLote.value = '';
+    actualizarSelectores();
+    aplicarFiltros();
+    // Opcional: enfocar automáticamente el rack seleccionado
+    if (selectRack.value !== 'all') {
+      enfocarRack(selectRack.value);
+    }
+  });
+  
+  // Evento para el filtro de cliente
+  selectCliente.addEventListener('change', () => {
+    // Al cambiar el cliente, actualizamos artículos y lotes
+    selectArticulo.value = '';
+    selectLote.value = '';
+    actualizarSelectores();
+    aplicarFiltros();
+  });
+  
+  // Evento para el filtro de artículo
+  selectArticulo.addEventListener('change', () => {
+    // Al cambiar el artículo, actualizamos solo los lotes
+    selectLote.value = '';
+    actualizarSelectores();
+    aplicarFiltros();
+  });
+  
+  // Evento para el filtro de lote
+  selectLote.addEventListener('change', () => {
+    aplicarFiltros();
+  });
+  
+  // Botón para enfocar rack
+  focusBtn.addEventListener('click', () => enfocarRack(selectRack.value));
+  
+  // Botón para resetear filtros
+  resetBtn.addEventListener('click', () => {
+    selectRack.value = 'all';
+    selectCliente.value = '';
+    selectArticulo.value = '';
+    selectLote.value = '';
+    actualizarSelectores();
+    aplicarFiltros();
+  });
+}
+function cargarOpcionesFiltros() {
+    const clientes = new Set();
+    const articulos = new Set();
+    const lotes = new Set();
+
+    // Extraer datos únicos de initialData
+    initialData.forEach(item => {
+        // Clientes
+        if (item.cliente) clientes.add(item.cliente);
+        if (item.articulos) {
+            item.articulos.forEach(articulo => {
+                if (articulo.cliente) clientes.add(articulo.cliente);
+                if (articulo.codigo) articulos.add(articulo.codigo);
+                if (articulo.lote) lotes.add(articulo.lote);
+            });
+        }
+    });
+
+    // Llenar selectores
+    llenarSelector('cliente-filter', Array.from(clientes).sort());
+    llenarSelector('articulo-filter', Array.from(articulos).sort());
+    llenarSelector('lote-filter', Array.from(lotes).sort());
+}
+
+function llenarSelector(idSelector, opciones) {
+    const selector = document.getElementById(idSelector);
+    selector.innerHTML = `<option value="">Todos</option>`;
+    opciones.forEach(opcion => {
+        selector.innerHTML += `<option value="${opcion}">${opcion}</option>`;
+    });
+}
+// Actualizar estadísticas basadas en los filtros
+function actualizarEstadisticasFiltradas(filtros) {
+    const cajasVisibles = boxes.filter(caja => caja.visible);
+    
+    // Aquí puedes implementar lógica para mostrar estadísticas específicas
+    // de las cajas visibles según los filtros aplicados
+    console.log(`Cajas visibles: ${cajasVisibles.length}`);
+    
+    // Ejemplo: Mostrar resumen en la UI
+    const resumenFiltrado = document.getElementById('resumen-filtrado');
+    if (resumenFiltrado) {
+        let texto = '';
+        if (filtros.cliente) texto += `Cliente: ${filtros.cliente} `;
+        if (filtros.articulo) texto += `Artículo: ${filtros.articulo} `;
+        if (filtros.lote) texto += `Lote: ${filtros.lote} `;
+        
+        resumenFiltrado.textContent = texto || 'Mostrando todas las cajas';
+        resumenFiltrado.textContent += ` (${cajasVisibles.length} cajas)`;
+    }
+}
+
+
+
+  // Función para calcular y mostrar el porcentaje de ocupación por rack
+function calcularOcupacionRacks(rackEspecifico = 'all') {
+    // Obtener todos los racks existentes en la escena
+    const racks = scene.children.filter(obj => 
+            obj.userData?.tipoObjeto === 'rack' &&
+            (rackEspecifico === 'all' || obj.userData.letra === rackEspecifico)
+        );
+        
+    if (racks.length === 0) {
+        console.error("No se encontraron racks en la escena");
+        return;
+    }
+    
+    // Objeto para almacenar estadísticas por rack
+    const estadisticasRacks = {};
+    
+    // Inicializar estadísticas para cada rack
+    racks.forEach(rack => {
+        const letraRack = rack.userData.letra;
+
+        
+        const numSecciones = rack.userData.numeroSecciones || rack.userData.secciones;
+        const dobleCara = rack.userData.dobleCara;
+        const niveles = 8; // Según el código, siempre son 8 niveles
+        
+        // Calcular capacidad total del rack
+        // Para cada nivel, obtener la cantidad de palets por sección
+        let capacidadTotal = 0;
+        
+        for (let nivel = 0; nivel < niveles; nivel++) {
+            // Determinar palets por sección según nivel
+            const paletsPorSeccion = nivel < 2 ? 
+                rack.userData.paletsPorNivel['0-1'] : 
+                rack.userData.paletsPorNivel['2+'];
+            
+            // Si es doble cara, multiplicar por 2 las secciones (cara A y B)
+            const caras = dobleCara ? 2 : 1;
+            
+            // Sumar a la capacidad total
+            capacidadTotal += numSecciones * paletsPorSeccion * caras;
+        }
+        
+        // Inicializar estadísticas para este rack
+        estadisticasRacks[letraRack] = {
+            capacidadTotal: capacidadTotal,
+            ocupados: 0,
+            disponibles: 0,
+            sinDisponibilidad: 0,
+            especiales: 0,
+            ocupacionTotal: 0,
+            porcentajeEspeciales: 0,
+            porcentajeDisponibles: 0,
+            porcentajeSinDisponibilidad: 0
+        };
+    });
+    
+    // Contar cajas existentes por rack
+    const cajas = scene.children.filter(obj => 
+        obj.geometry instanceof THREE.BoxGeometry && 
+        obj.userData?.id?.match(/^[A-Z]\d{2}[A-Z]\d{2}$/)
+    );
+    
+    cajas.forEach(caja => {
+        const letraRack = caja.userData.id.charAt(0);
+        
+        if (estadisticasRacks[letraRack]) {
+            estadisticasRacks[letraRack].ocupados++;
+            
+            // Contabilizar por estado
+            if (caja.userData.estado === "sin disponibilidad") {
+                estadisticasRacks[letraRack].sinDisponibilidad++;
+            } else if (caja.userData.estado === "disponible") {
+                estadisticasRacks[letraRack].disponibles++;
+            }
+            
+            // Contabilizar especiales (PU01P001)
+            if (caja.userData.cod_area === "PU01P001") {
+                estadisticasRacks[letraRack].especiales++;
+            }
+        }
+    });
+    
+    // Calcular porcentajes y espacios vacíos
+    Object.keys(estadisticasRacks).forEach(letraRack => {
+        const stats = estadisticasRacks[letraRack];
+        stats.vacantes = stats.capacidadTotal - stats.ocupados;
+        stats.ocupacionTotal = (stats.ocupados / stats.capacidadTotal) * 100;
+        stats.porcentajeEspeciales = (stats.especiales / stats.capacidadTotal) * 100;
+        stats.porcentajeDisponibles = (stats.disponibles / stats.capacidadTotal) * 100;
+        stats.porcentajeSinDisponibilidad = (stats.sinDisponibilidad / stats.capacidadTotal) * 100;
+        stats.porcentajeVacantes = (stats.vacantes / stats.capacidadTotal) * 100;
+    });
+      // Verificar si el panel está oculto y mostrarlo si es necesario
+    const panelExistente = document.getElementById('panel-estadisticas');
+    if (panelExistente && panelExistente.style.display === 'none') {
+        panelExistente.style.display = 'block';
+    }
+    
+    // Mostrar resultados
+    mostrarEstadisticasRacks(estadisticasRacks, rackEspecifico);
+    
+    return estadisticasRacks;
+}
+
+// Función para mostrar las estadísticas en una ventana o panel
+function mostrarEstadisticasRacks(estadisticasRacks,  rackEspecifico = 'all') {
+     // Crear contenedor para el panel si no existe
+    let panelEstadisticas = document.getElementById('panel-estadisticas');
+    
+    if (!panelEstadisticas) {
+        panelEstadisticas = document.createElement('div');
+        panelEstadisticas.id = 'panel-estadisticas';
+        panelEstadisticas.style.position = 'absolute';
+        panelEstadisticas.style.top = '10px';
+        panelEstadisticas.style.right = '10px';
+        panelEstadisticas.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+        panelEstadisticas.style.padding = '15px';
+        panelEstadisticas.style.borderRadius = '5px';
+        panelEstadisticas.style.boxShadow = '0 0 10px rgba(0, 0, 0, 0.3)';
+        panelEstadisticas.style.maxHeight = '90vh';
+        panelEstadisticas.style.overflowY = 'auto';
+        panelEstadisticas.style.zIndex = '1000';
+        panelEstadisticas.style.fontFamily = 'Arial, sans-serif';
+        document.body.appendChild(panelEstadisticas);
+    } else {
+        // Si el panel ya existe, asegurarse de que sea visible
+        panelEstadisticas.style.display = 'block';
+    }
+    
+    // Limpiar panel existente
+    panelEstadisticas.innerHTML = '';
+    
+    // Crear título dinámico basado en el rack seleccionado
+    const titulo = document.createElement('h2');
+    titulo.textContent = rackEspecifico === 'all' 
+        ? 'Estadísticas de Ocupación - Todos los Racks' 
+        : `Estadísticas de Ocupación - Rack "${rackEspecifico}"`;  // Aquí añadimos las comillas
+    titulo.style.marginTop = '0';
+    titulo.style.marginBottom = '15px';
+    titulo.style.borderBottom = '1px solid #ccc';
+    titulo.style.paddingBottom = '5px';
+    panelEstadisticas.appendChild(titulo);
+
+
+    // Crear botón para cerrar
+    const btnCerrar = document.createElement('button');
+    btnCerrar.textContent = 'X';
+    btnCerrar.style.position = 'absolute';
+    btnCerrar.style.top = '5px';
+    btnCerrar.style.right = '5px';
+    btnCerrar.style.background = '#f44336';
+    btnCerrar.style.color = 'white';
+    btnCerrar.style.border = 'none';
+    btnCerrar.style.borderRadius = '50%';
+    btnCerrar.style.width = '25px';
+    btnCerrar.style.height = '25px';
+    btnCerrar.style.cursor = 'pointer';
+    btnCerrar.style.fontWeight = 'bold';
+    btnCerrar.onclick = () => {
+        panelEstadisticas.style.display = 'none';
+    };
+    panelEstadisticas.appendChild(btnCerrar);
+    
+    // Agregar estadísticas globales
+    const totalRacks = Object.keys(estadisticasRacks).length;
+    let capacidadTotal = 0;
+    let totalOcupados = 0;
+    let totalEspeciales = 0;
+    let totalSinDisponibilidad = 0;
+    let totalDisponibles = 0;
+    
+    Object.values(estadisticasRacks).forEach(stats => {
+        capacidadTotal += stats.capacidadTotal;
+        totalOcupados += stats.ocupados;
+        totalEspeciales += stats.especiales;
+        totalSinDisponibilidad += stats.sinDisponibilidad;
+        totalDisponibles += stats.disponibles;
+    });
+    
+    const resumenGlobal = document.createElement('div');
+    resumenGlobal.style.marginBottom = '15px';
+     // Solo agregamos el título h3 si es para todos los racks
+    let contenidoHTML = rackEspecifico === 'all' 
+        ? `<h3>Resumen Global</h3>` 
+        : '';
+    
+    contenidoHTML += `
+        <p><strong>Total de racks:</strong> ${totalRacks}</p>
+        <p><strong>Capacidad total:</strong> ${capacidadTotal} posiciones</p>
+        <p><strong>Ocupación total:</strong> ${totalOcupados} (${((totalOcupados / capacidadTotal) * 100).toFixed(2)}%)</p>
+        <p><strong>Posiciones vacías:</strong> ${capacidadTotal - totalOcupados} (${(((capacidadTotal - totalOcupados) / capacidadTotal) * 100).toFixed(2)}%)</p>
+        <hr>
+    `;
+    
+    resumenGlobal.innerHTML = contenidoHTML;
+    panelEstadisticas.appendChild(resumenGlobal);
+    
+    // Crear una tabla para mejorar la visualización
+    const table = document.createElement('table');
+    table.style.width = '100%';
+    table.style.borderCollapse = 'collapse';
+    
+    // Crear encabezado de tabla
+    const thead = document.createElement('thead');
+   thead.innerHTML = `
+    <tr style="background-color: #f2f2f2;">
+        <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">Rack</th>
+        <th style="padding: 8px; text-align: center; border: 1px solid #ddd;">Capacidad</th>
+        <th style="padding: 8px; text-align: center; border: 1px solid #ddd;">Ocupados</th>
+        <th style="padding: 8px; text-align: center; border: 1px solid #ddd;">Vacíos</th>
+        <th style="padding: 8px; text-align: center; border: 1px solid #ddd;">% Ocupación</th>
+    </tr>
+    `;
+    table.appendChild(thead);
+    
+    const tbody = document.createElement('tbody');
+    
+    // Ordenar racks alfabéticamente
+    const letrasRack = Object.keys(estadisticasRacks).sort();
+    
+    // Añadir una fila por cada rack
+    letrasRack.forEach(letraRack => {
+        const stats = estadisticasRacks[letraRack];
+        const row = document.createElement('tr');
+        
+        // Determinar color de fondo según nivel de ocupación
+        let bgColor = '#ffffff';
+        if (stats.ocupacionTotal > 90) {
+            bgColor = '#ffcccc'; // Rojo claro (muy ocupado)
+        } else if (stats.ocupacionTotal > 70) {
+            bgColor = '#ffffcc'; // Amarillo claro (ocupación media-alta)
+        } else if (stats.ocupacionTotal > 50) {
+            bgColor = '#e6ffe6'; // Verde claro (ocupación media)
+        } else {
+            bgColor = '#ccffcc'; // Verde más claro (poca ocupación)
+        }
+        
+        row.style.backgroundColor = bgColor;
+        
+        row.innerHTML = `
+          <td style="padding: 8px; border: 1px solid #ddd;"><strong>Rack ${letraRack}</strong></td>
+          <td style="padding: 8px; text-align: center; border: 1px solid #ddd;">${stats.capacidadTotal}</td>
+          <td style="padding: 8px; text-align: center; border: 1px solid #ddd;">${stats.ocupados}</td>
+          <td style="padding: 8px; text-align: center; border: 1px solid #ddd;">${stats.vacantes}</td>
+          <td style="padding: 8px; text-align: center; border: 1px solid #ddd;">${stats.ocupacionTotal.toFixed(2)}%</td>
+      `;
+        
+        tbody.appendChild(row);
+    });
+    
+    table.appendChild(tbody);
+    panelEstadisticas.appendChild(table);
+    
+    // Crear gráficos visuales para cada rack
+    const graficosContainer = document.createElement('div');
+    graficosContainer.style.marginTop = '20px';
+    
+    const tituloGraficos = document.createElement('h3');
+    tituloGraficos.textContent = 'Visualización de Ocupación';
+    tituloGraficos.style.borderBottom = '1px solid #ccc';
+    tituloGraficos.style.paddingBottom = '5px';
+    graficosContainer.appendChild(tituloGraficos);
+    
+    letrasRack.forEach(letraRack => {
+        const stats = estadisticasRacks[letraRack];
+        
+        const graficoBarra = document.createElement('div');
+        graficoBarra.style.margin = '10px 0';
+        
+        const tituloRack = document.createElement('div');
+        tituloRack.textContent = `Rack ${letraRack}`;
+        tituloRack.style.fontWeight = 'bold';
+        tituloRack.style.marginBottom = '3px';
+        graficoBarra.appendChild(tituloRack);
+        
+       // Reemplaza la creación compleja de barras con este código más simple
+const barraCompleta = document.createElement('div');
+barraCompleta.style.width = '100%';
+barraCompleta.style.height = '25px';
+barraCompleta.style.display = 'flex';
+barraCompleta.style.overflow = 'hidden';
+barraCompleta.style.borderRadius = '3px';
+barraCompleta.style.border = '1px solid #ccc';
+
+// Solo dos colores: ocupado y vacío
+const barraOcupados = document.createElement('div');
+barraOcupados.style.width = `${stats.ocupacionTotal}%`;
+barraOcupados.style.backgroundColor = '#2196F3'; // Azul para todos los ocupados
+barraOcupados.style.height = '100%';
+barraOcupados.title = `Ocupados: ${stats.ocupados} (${stats.ocupacionTotal.toFixed(2)}%)`;
+barraCompleta.appendChild(barraOcupados);
+
+// Barra para Vacantes (gris claro)
+if (stats.porcentajeVacantes > 0) {
+    const barraVacantes = document.createElement('div');
+    barraVacantes.style.width = `${stats.porcentajeVacantes}%`;
+    barraVacantes.style.backgroundColor = '#E0E0E0';
+    barraVacantes.style.height = '100%';
+    barraVacantes.title = `Vacíos: ${stats.vacantes} (${stats.porcentajeVacantes.toFixed(2)}%)`;
+    barraCompleta.appendChild(barraVacantes);
+}
+        graficoBarra.appendChild(barraCompleta);
+        
+        // Leyenda para la barra
+        const leyenda = document.createElement('div');
+        leyenda.style.fontSize = '12px';
+        leyenda.style.color = '#666';
+        leyenda.style.marginTop = '2px';
+        leyenda.textContent = `${stats.ocupados} de ${stats.capacidadTotal} ocupados (${stats.ocupacionTotal.toFixed(2)}%)`;
+        graficoBarra.appendChild(leyenda);
+        
+        graficosContainer.appendChild(graficoBarra);
+    });
+    
+    panelEstadisticas.appendChild(graficosContainer);
+   
+}
+
+// Función para integrar el botón en la interfaz existente
+function integrarAnalisisOcupacion() {
+    // Crear botón para mostrar estadísticas
+    const btnEstadisticas = document.createElement('button');
+    btnEstadisticas.textContent = 'Analizar Ocupación de Racks';
+    btnEstadisticas.style.padding = '10px 15px';
+    btnEstadisticas.style.backgroundColor = '#2196F3';
+    btnEstadisticas.style.color = 'white';
+    btnEstadisticas.style.border = 'none';
+    btnEstadisticas.style.borderRadius = '4px';
+    btnEstadisticas.style.cursor = 'pointer';
+    btnEstadisticas.style.boxShadow = '0 2px 5px rgba(0,0,0,0.2)';
+    btnEstadisticas.style.margin = '10px';
+    
+    // Efecto hover
+    btnEstadisticas.onmouseover = () => {
+        btnEstadisticas.style.backgroundColor = '#0b7dda';
+    };
+    
+    btnEstadisticas.onmouseout = () => {
+        btnEstadisticas.style.backgroundColor = '#2196F3';
+    };
+    
+    // Funcionalidad del botón
+    btnEstadisticas.onclick = () => {
+        calcularOcupacionRacks();
+    };
+    
+      // OPCIÓN 1: Crear un contenedor fijo en la parte superior derecha
+    const btnContainer = document.createElement('div');
+    btnContainer.style.position = 'fixed';
+    btnContainer.style.top = '10px';
+    btnContainer.style.right = '10px'; // Cambiado a la derecha
+    btnContainer.style.zIndex = '1000';
+    btnContainer.appendChild(btnEstadisticas);
+    document.body.appendChild(btnContainer);
+    
+      const selectRack = document.getElementById('rack-filter');
+    
+      // Funcionalidad del botón - ahora usa el valor seleccionado
+    btnEstadisticas.onclick = () => {
+        calcularOcupacionRacks(selectRack.value);
+    };
+    
+    // También podemos hacer que se actualice automáticamente al cambiar el selector
+    selectRack.addEventListener('change', () => {
+        // Solo actualizar si el panel está visible
+        const panel = document.getElementById('panel-estadisticas');
+        if (panel && panel.style.display !== 'none') {
+            calcularOcupacionRacks(selectRack.value);
+        }
+    });
+    console.log('Botón de análisis de ocupación añadido a la interfaz');
+    
+    return btnEstadisticas;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    // Esperar un momento para asegurarse de que la escena esté cargada
+    setTimeout(() => {
+        setupRackFilterUI();  // Asegurarse de que esto se ejecute primero
+        integrarAnalisisOcupacion();
+    }, 1000);
+});
+
+// También podemos exponer esta función para llamarla desde la consola
+window.analizarOcupacionRacks = calcularOcupacionRacks;
 // Variable global para contar frames
 let frameCount = 0;
 
@@ -1600,12 +2745,15 @@ function init() {
     inicializarRacks(); // Primero crea los racks
     createGrid();
     crearCajasDesdeDatos(initialData);
-
+    setupRackFilterUI(); // <-- Nueva línea
+    setupInteraccion();
     // Optimizar el renderer pero mantener buena calidad
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
     
+
     
-    
+    // ... (resto de tu código init existente)
+  
     
     if (typeof setupInteraccion === 'function') {
         setupInteraccion();
