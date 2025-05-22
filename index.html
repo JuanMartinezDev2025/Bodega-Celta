@@ -4,6 +4,12 @@
   <meta charset="UTF-8" />
   <title>Bodega Celta</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js"></script>
+ <!-- Tom Select CSS -->
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet">
+
+<!-- Tom Select JS -->
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+
   <style>
     body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; }
     /*canvas para renderizar*/
@@ -671,6 +677,7 @@
     // Variable para alternar entre modos
     let currentControls = orbitControls; // Comenzamos con orbitControls
     let isFirstPerson = false;
+    let modeIndicator = null; // ← Añade esto
 
     // Configurar evento para alternar entre modos
     document.addEventListener('keydown', (event) => {
@@ -717,9 +724,9 @@
         columnWidth: 1,
         widthDivisions: 110,        // Más divisiones para el grid más ancho
         depthDivisions: 70,         // Mantener divisiones de profundidad
-        alturaCaja: 0.8,
+        alturaCaja: 1.1,
         espacioVertical: 0.1,
-        anchoCaja: 0.8,
+        anchoCaja: 1.1,
         profundidadCaja: 0.9,
         // Parámetros para racks
         numeroRacks: 10,            // A-J son 10 racks
@@ -753,59 +760,133 @@ function asignarLetraRack(rackIndex) {
     return String.fromCharCode(65 + Math.min(9, Math.max(0, rackIndex)));
 }
 
-const initialData = [
-  {
-    id: "A04E02",
-    rack: "A",
-    cliente: "Farmacorp", // Cliente principal de la caja
-    articulos: [
-      { 
-        codigo: "RES-100", 
-        nombre: "Resistencias 100Ω",
-        cantidad: 50, 
-        lote: "L2023-05", 
-        cliente: "Farmacorp" // Debe coincidir con cliente de caja
-      },
-      { 
-        codigo: "CAP-220", 
-        nombre: "Capacitores 220μF",
-        cantidad: 30, 
-        lote: "L2023-02",
-        cliente: "Farmacorp"
-      }
-    ]
-  },
-  {
-    id: "A03E02",
-    rack: "A",
-    cliente: "FarmaTec", // Nombre de cliente consistente
-    articulos: [
-      { 
-        codigo: "RES-101", 
-        nombre: "Resistencias Vital 100Ω",
-        cantidad: 50, 
-        lote: "L2023-05",
-        cliente: "FarmaTec"
-      }
-    ]
-  },
-  {
-    id: "B04B03",
-    rack: "B",
-    cliente: "ElectroTech",
-    articulos: [
-      {
-        codigo: "LED-RED",
-        nombre: "LED Rojo 5mm",
-        cantidad: 100,
-        lote: "L2023-08",
-        cliente: "ElectroTech"
-      }
-    ]
-  }
-];
-// Función para seleccionar caja y mostrar modal
-function seleccionarCaja(caja) {
+let initialData = [];
+// Crear elementos para el indicador de carga
+function crearIndicadorCarga() {
+    const overlay = document.createElement('div');
+    overlay.id = 'loading-overlay';
+    overlay.style.position = 'fixed';
+    overlay.style.top = '0';
+    overlay.style.left = '0';
+    overlay.style.width = '100%';
+    overlay.style.height = '100%';
+    overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.5)';
+    overlay.style.zIndex = '9999';
+    overlay.style.display = 'flex';
+    overlay.style.justifyContent = 'center';
+    overlay.style.alignItems = 'center';
+    
+    const spinner = document.createElement('div');
+    spinner.id = 'loading-spinner';
+    spinner.style.width = '60px';
+    spinner.style.height = '60px';
+    spinner.style.border = '5px solid #f3f3f3';
+    spinner.style.borderTop = '5px solid #3498db';
+    spinner.style.borderRadius = '50%';
+    spinner.style.animation = 'spin 1s linear infinite';
+    
+    // Crear la animación para el spinner
+    const styleElement = document.createElement('style');
+    styleElement.textContent = `
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    `;
+    document.head.appendChild(styleElement);
+    
+    // Añadir texto de carga
+    const loadingText = document.createElement('div');
+    loadingText.textContent = 'Cargando datos...';
+    loadingText.style.color = 'white';
+    loadingText.style.marginTop = '10px';
+    loadingText.style.fontSize = '18px';
+    
+    const container = document.createElement('div');
+    container.style.display = 'flex';
+    container.style.flexDirection = 'column';
+    container.style.alignItems = 'center';
+    container.appendChild(spinner);
+    container.appendChild(loadingText);
+    
+    overlay.appendChild(container);
+    document.body.appendChild(overlay);
+    
+    return overlay;
+}
+
+// Eliminar el indicador de carga
+function eliminarIndicadorCarga() {
+    const overlay = document.getElementById('loading-overlay');
+    if (overlay) {
+        overlay.remove();
+    }
+}
+
+async function cargarDatosDesdeAPI() {
+    const cargador = crearIndicadorCarga();
+
+    try {
+        const listaResponse = await fetch('http://129.146.161.23/BackEnd_Orion/datos_almacen.php?lista');
+        if (!listaResponse.ok) throw new Error('Error al obtener la lista de ubicaciones');
+
+        const ubicaciones = await listaResponse.json();
+        initialData = ubicaciones.filter(u => u.stock === 1).map(u => ({
+            ...u,
+            articulos: null, // no se cargan aún
+            detallesCargados: false // flag para saber si ya se cargaron los detalles
+        }));
+
+        console.log(`Ubicaciones cargadas: ${initialData.length} (sin detalles aún)`);
+    } catch (error) {
+        console.error('Error al cargar ubicaciones:', error);
+        alert('No se pudieron cargar las ubicaciones del servidor');
+    } finally {
+        eliminarIndicadorCarga();
+
+        actualizarConfiguracion();
+        inicializarRacks();
+        createGrid();
+        crearCajasDesdeDatos(initialData); // cajas sin detalles
+        setupRackFilterUI();
+        setupInteraccion(); // <- Aquí es donde harás la carga bajo demanda
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+
+        window.addEventListener('resize', _.debounce(() => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }, 250));
+
+        frameCount = 0;
+        animate();
+    }
+}
+
+// Nueva función para cargar detalles de una caja específica
+async function cargarDetallesCaja(cajaId) {
+    try {
+        const detalleResponse = await fetch(`http://129.146.161.23/BackEnd_Orion/datos_almacen.php?detalle&codubi=${cajaId}`);
+        if (!detalleResponse.ok) throw new Error('Error al obtener detalles de la ubicación');
+
+        const detalles = await detalleResponse.json();
+        
+        // Actualizar los datos en initialData
+        const index = initialData.findIndex(item => item.id === cajaId);
+        if (index !== -1) {
+            initialData[index].articulos = detalles;
+            initialData[index].detallesCargados = true;
+        }
+        
+        return detalles;
+    } catch (error) {
+        console.error('Error al cargar detalles de la caja:', error);
+        throw error;
+    }
+}
+
+// Función para seleccionar caja y mostrar modal (MODIFICADA)
+async function seleccionarCaja(caja) {
     // Quitar selección anterior si existe
     if (selectedBox) {
         selectedBox.material.emissive.setHex(0x000000);
@@ -815,20 +896,19 @@ function seleccionarCaja(caja) {
     selectedBox = caja;
     selectedBox.material.emissive.setHex(0x888888);
     
-    // Mostrar información en el modal
-    mostrarModalCaja(caja);
+    // Cargar detalles si no están cargados y mostrar modal
+    await mostrarModalCaja(caja);
     
     needsRender = true;
 }
 
-
-// Modificación a la función mostrarModalCaja para incluir los artículos en la tabla
-function mostrarModalCaja(caja) {
+// Modificación a la función mostrarModalCaja para incluir carga bajo demanda
+async function mostrarModalCaja(caja) {
     const modal = document.getElementById('box-modal');
     const overlay = document.getElementById('modal-overlay');
     const userData = caja.userData;
     
-    // Llenar información en el modal
+    // Llenar información básica en el modal
     document.getElementById('modal-box-id').textContent = userData.id || 'N/A';
     document.getElementById('modal-box-content').textContent = userData.contenido || 'N/A';
     document.getElementById('modal-box-rack').textContent = userData.rack || 'N/A';
@@ -836,68 +916,109 @@ function mostrarModalCaja(caja) {
     document.getElementById('modal-box-level').textContent = String.fromCharCode(65 + userData.nivel) || 'N/A';
     document.getElementById('modal-box-pallet').textContent = (userData.palet + 1) || 'N/A';
     
+    // Mostrar modal inmediatamente con información básica
+    modal.style.display = 'block';
+    overlay.style.display = 'block';
+    
     // Poblar la tabla de artículos
     const articulosTbody = document.getElementById('articulos-tbody');
     articulosTbody.innerHTML = ''; // Limpiar contenido anterior
     
-    // Aquí usamos los datos de initialData para encontrar los artículos correspondientes a esta caja
+    // Mostrar indicador de carga en la tabla
+    const loadingRow = document.createElement('tr');
+    const loadingCell = document.createElement('td');
+    loadingCell.textContent = 'Cargando artículos...';
+    loadingCell.colSpan = 6;
+    loadingCell.style.textAlign = 'center';
+    loadingCell.style.padding = '20px';
+    loadingCell.style.fontStyle = 'italic';
+    loadingRow.appendChild(loadingCell);
+    articulosTbody.appendChild(loadingRow);
+    
+    // Buscar los datos de la caja
     const datosCaja = initialData.find(item => item.id === userData.id);
     
-    if (datosCaja && datosCaja.articulos && datosCaja.articulos.length > 0) {
-        // Hay artículos para mostrar desde initialData
-        datosCaja.articulos.forEach(articulo => {
-            const row = document.createElement('tr');
-            
-            // Crear celdas para cada propiedad del artículo
-            const codigoCell = document.createElement('td');
-            codigoCell.textContent = articulo.codigo || 'N/A';
-            
-            const nombreCell = document.createElement('td');
-            nombreCell.textContent = articulo.nombre || 'N/A';
-            
-            const cantidadCell = document.createElement('td');
-            cantidadCell.textContent = articulo.cantidad || '0';
-            
-            const loteCell = document.createElement('td');
-            loteCell.textContent = articulo.lote || 'N/A';
-            
-            const clienteCell = document.createElement('td');
-            clienteCell.textContent = articulo.cliente || 'N/A';
-            
-            // Estado (si existe)
-            const estadoCell = document.createElement('td');
-            estadoCell.textContent = articulo.estado || 'Activo';
-            
-            // Añadir celdas a la fila
-            row.appendChild(codigoCell);
-            row.appendChild(nombreCell);
-            row.appendChild(cantidadCell);
-            row.appendChild(loteCell);
-            row.appendChild(clienteCell);
-            row.appendChild(estadoCell);
-            
-            // Añadir fila a la tabla
-            articulosTbody.appendChild(row);
-        });
-    } else {
-        // No hay artículos, mostrar fila vacía
-        const emptyRow = document.createElement('tr');
-        const emptyCell = document.createElement('td');
-        emptyCell.textContent = 'No hay artículos para mostrar';
-        emptyCell.colSpan = 6; // Expandir a través de todas las columnas
-        emptyCell.style.textAlign = 'center';
-        emptyCell.style.padding = '20px';
-        emptyRow.appendChild(emptyCell);
-        articulosTbody.appendChild(emptyRow);
+    try {
+        let articulos = [];
+        
+        if (datosCaja) {
+            // Si los detalles no están cargados, cargarlos
+            if (!datosCaja.detallesCargados) {
+                articulos = await cargarDetallesCaja(userData.id);
+            } else {
+                // Si ya están cargados, usar los datos existentes
+                articulos = datosCaja.articulos || [];
+            }
+        }
+        
+        // Limpiar la tabla nuevamente
+        articulosTbody.innerHTML = '';
+        
+        if (articulos && articulos.length > 0) {
+            // Hay artículos para mostrar
+            articulos.forEach(articulo => {
+                const row = document.createElement('tr');
+                
+                // Crear celdas para cada propiedad del artículo
+                const codigoCell = document.createElement('td');
+                codigoCell.textContent = articulo.codigo || 'N/A';
+                
+                const nombreCell = document.createElement('td');
+                nombreCell.textContent = articulo.nombre || 'N/A';
+                
+                const cantidadCell = document.createElement('td');
+                cantidadCell.textContent = articulo.cantidad || '0';
+                
+                const loteCell = document.createElement('td');
+                loteCell.textContent = articulo.lote || 'N/A';
+                
+                const clienteCell = document.createElement('td');
+                clienteCell.textContent = articulo.cliente || 'N/A';
+                
+                // Estado (si existe)
+                const estadoCell = document.createElement('td');
+                estadoCell.textContent = articulo.estado || 'Activo';
+                
+                // Añadir celdas a la fila
+                row.appendChild(codigoCell);
+                row.appendChild(nombreCell);
+                row.appendChild(cantidadCell);
+                row.appendChild(loteCell);
+                row.appendChild(clienteCell);
+                row.appendChild(estadoCell);
+                
+                // Añadir fila a la tabla
+                articulosTbody.appendChild(row);
+            });
+        } else {
+            // No hay artículos, mostrar fila vacía
+            const emptyRow = document.createElement('tr');
+            const emptyCell = document.createElement('td');
+            emptyCell.textContent = 'No hay artículos para mostrar';
+            emptyCell.colSpan = 6;
+            emptyCell.style.textAlign = 'center';
+            emptyCell.style.padding = '20px';
+            emptyRow.appendChild(emptyCell);
+            articulosTbody.appendChild(emptyRow);
+        }
+        
+    } catch (error) {
+        console.error('Error al cargar detalles:', error);
+        // Mostrar mensaje de error en la tabla
+        articulosTbody.innerHTML = '';
+        const errorRow = document.createElement('tr');
+        const errorCell = document.createElement('td');
+        errorCell.textContent = 'Error al cargar los artículos';
+        errorCell.colSpan = 6;
+        errorCell.style.textAlign = 'center';
+        errorCell.style.padding = '20px';
+        errorCell.style.color = 'red';
+        errorRow.appendChild(errorCell);
+        articulosTbody.appendChild(errorRow);
     }
-    
-    // Mostrar modal
-    modal.style.display = 'block';
-    overlay.style.display = 'block';
     
     // Desactivar controles de la cámara mientras el modal está abierto
     orbitControls.enabled = true;
-
 }
 
 // Función para actualizar etiquetas existentes (por ejemplo, si cambia el ID)
@@ -932,22 +1053,26 @@ function cerrarModal() {
 }
 
 function setupInteraccion() {
+
+   // 1. Eliminar el modeIndicator anterior si existe
+    const oldIndicator = document.querySelector('div[style*="position: fixed; bottom: 20px; right: 20px;"]');
+    if (oldIndicator) oldIndicator.remove();
     // 1. Variables para optimización
     const raycaster = new THREE.Raycaster(); // Reutilizar la misma instancia
     const mouse = new THREE.Vector2(); // Reutilizar este vector
     
     // Agrega esto en tu init() o setupInteraccion()
-      const modeIndicator = document.createElement('div');
-      modeIndicator.style.position = 'fixed';
-      modeIndicator.style.bottom = '20px';
-      modeIndicator.style.right = '20px';
-      modeIndicator.style.backgroundColor = 'rgba(0,0,0,0.7)';
-      modeIndicator.style.color = 'white';
-      modeIndicator.style.padding = '10px';
-      modeIndicator.style.borderRadius = '5px';
-      modeIndicator.style.zIndex = '1000';
-      modeIndicator.textContent = 'Modo: Órbita (Presiona F para cambiar)';
-      document.body.appendChild(modeIndicator);
+    modeIndicator = document.createElement('div');
+    modeIndicator.style.position = 'fixed';
+    modeIndicator.style.bottom = '20px';
+    modeIndicator.style.right = '20px';
+    modeIndicator.style.backgroundColor = 'rgba(0,0,0,0.7)';
+    modeIndicator.style.color = 'white';
+    modeIndicator.style.padding = '10px';
+    modeIndicator.style.borderRadius = '5px';
+    modeIndicator.style.zIndex = '1000';
+    modeIndicator.textContent = 'Modo: Órbita (Presiona F para cambiar)';
+    document.body.appendChild(modeIndicator);
     // 3. Primer Evento de clic (optimizado)
     renderer.domElement.addEventListener('click', (event) => {
       // Reutilizar el vector mouse
@@ -988,30 +1113,29 @@ function setupInteraccion() {
     });
     
 
-    // Event listeners para movimiento WASD
-    document.addEventListener('keydown', (event) => {
-        if (!isFirstPerson) return; // Solo funciona en modo FPS
-        
-        switch (event.code) {
-            case 'KeyW': moveState.forward = true; break;
-            case 'KeyA': moveState.left = true; break;
-            case 'KeyS': moveState.backward = true; break;
-            case 'KeyD': moveState.right = true; break;
-            case 'Space': moveState.up = true; break;      // Espacio para subir
-            case 'ShiftLeft': moveState.down = true; break; // Shift izquierdo para bajar
-        }
-    });
+  document.addEventListener('keydown', (event) => {
+    if (!isFirstPerson) return;
+    
+    switch (event.code) {
+        case 'KeyW': moveState.forward = true; break;   // Adelante
+        case 'KeyA': moveState.left = true; break;      // Izquierda
+        case 'KeyS': moveState.backward = true; break;  // Atrás
+        case 'KeyD': moveState.right = true; break;     // Derecha
+        case 'Space': moveState.up = true; break;       // Subir (Espacio)
+        case 'ShiftLeft': moveState.down = true; break; // Bajar (Shift)
+    }
+});
 
-    document.addEventListener('keyup', (event) => {
-        switch (event.code) {
-            case 'KeyW': moveState.forward = false; break;
-            case 'KeyA': moveState.left = false; break;
-            case 'KeyS': moveState.backward = false; break;
-            case 'KeyD': moveState.right = false; break;
-            case 'Space': moveState.up = false; break;
-            case 'ShiftLeft': moveState.down = false; break;
-        }
-    });
+document.addEventListener('keyup', (event) => {
+    switch (event.code) {
+        case 'KeyW': moveState.forward = false; break;
+        case 'KeyA': moveState.left = false; break;
+        case 'KeyS': moveState.backward = false; break;
+        case 'KeyD': moveState.right = false; break;
+        case 'Space': moveState.up = false; break;
+        case 'ShiftLeft': moveState.down = false; break;
+    }
+});
     // Evento para cerrar modal
     document.getElementById('close-modal').addEventListener('click', cerrarModal);
     
@@ -1138,17 +1262,19 @@ function createGrid() {
 
 
 
-// Crear materiales compartidos al inicio
+// Usar MeshStandardMaterial solo cuando sea necesario (para cajas con sombras)
 const sharedMaterials = {
-    rackPost: new THREE.MeshBasicMaterial({ color: 0x1a5fb4 }),
-    rackBeam: new THREE.MeshBasicMaterial({ color: 0xe95420 }),
-    crossBeam: new THREE.LineBasicMaterial({ color: 0xc0c0c0 })
+    rackPost: new THREE.MeshStandardMaterial({ color: 0x1a5fb4 }),
+    rackBeam: new THREE.MeshStandardMaterial({ color: 0xe95420 }),
+    palet: new THREE.MeshStandardMaterial({ color: 0x8a5700 }),
+    line: new THREE.LineBasicMaterial({ color: 0x5c3d1a })
 };
 
-// 2. Geometrías COMPARTIDAS
+// Usar instancias de BufferGeometry en lugar de Geometry (más eficiente)
 const sharedGeometries = {
-    post: new THREE.BoxGeometry(0.15, 1, 0.15), // Altura será escalada
-    beam: new THREE.BoxGeometry(1, 0.08, 0.08)  // Longitud será escalada
+    post: new THREE.BoxBufferGeometry(0.15, 1, 0.15),
+    beam: new THREE.BoxBufferGeometry(1, 0.08, 0.08),
+    palet: new THREE.BoxBufferGeometry(0.8, 0.12, config.cellSizeZ * 0.85)
 };
 
 function crearRack(posicionInicial, longitud, letraRack, niveles = 8, dobleCara = true, numeroSecciones = null){
@@ -1512,7 +1638,7 @@ function inicializarRacks() {
                 rackInfo.posInicio,
                 rackInfo.longitud, 
                 letraRack,
-                8, // niveles
+                7, // niveles
                 rackInfo.dobleCara,
                 rackInfo.numeroSecciones
             );
@@ -1808,8 +1934,8 @@ function crearEtiquetaCaja(caja) {
     
     
     // Dimensiones de la etiqueta (ajustar según necesidad)
-    const etiquetaAncho = config.anchoCaja * 0.8;
-    const etiquetaAlto = config.anchoCaja * 0.6;
+    const etiquetaAncho = config.anchoCaja * 1.0;
+    const etiquetaAlto = config.anchoCaja * 0.8;
     
     // Crear geometría de la etiqueta
     const etiquetaGeometry = new THREE.PlaneGeometry(etiquetaAncho, etiquetaAlto);
@@ -1852,6 +1978,7 @@ const COLORES = {
 
 // Función modificada para crear cajas que guarda correctamente los IDs
 function crearCajasDesdeDatos(dataArray) {
+     const cajasPorMaterial = {};
     dataArray.forEach((item) => {
         const { rack, columna, nivel, palet, lado } = obtenerParametrosPosicion(item);
         const { x, y, z } = obtenerPosicionDesdeDatos(item);
@@ -2229,15 +2356,255 @@ function actualizarSelectores() {
   actualizarSelector('lote-filter', lotes, 'Todos los lotes', filtros.lote);
 }
 
+function convertirSelectoresABuscables() {
+  // Lista de selectores a convertir
+  const selectores = [
+    { id: 'cliente-filter', placeholder: 'Buscar cliente...' },
+    { id: 'articulo-filter', placeholder: 'Buscar artículo...' },
+    { id: 'lote-filter', placeholder: 'Buscar lote...' }
+  ];
+  
+  selectores.forEach(({ id, placeholder }) => {
+    const selectElement = document.getElementById(id);
+    if (!selectElement) return;
+    
+    // VERIFICAR SI YA EXISTE UN INPUT DE BÚSQUEDA
+    const existingInput = document.getElementById(`${id}-search`);
+    if (existingInput) {
+      // Si ya existe, no crear otro
+      return;
+    }
+    
+    // Obtener el elemento padre del select
+    const parentElement = selectElement.parentElement;
+    
+    // Crear un contenedor para nuestro componente buscable
+    const containerDiv = document.createElement('div');
+    containerDiv.className = 'searchable-select-container';
+    containerDiv.style.position = 'relative';
+    containerDiv.style.display = 'inline-block';
+    containerDiv.style.width = '100%';
+    
+    // Crear el campo de entrada para la búsqueda
+    const inputElement = document.createElement('input');
+    inputElement.type = 'text';
+    inputElement.placeholder = placeholder;
+    inputElement.className = 'searchable-select-input';
+    inputElement.id = `${id}-search`;
+    inputElement.style.cssText = `
+      padding: 5px 25px 5px 5px;
+      width: 100%;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      box-sizing: border-box;
+    `;
+    
+    // Crear el botón desplegable
+    const dropdownButton = document.createElement('button');
+    dropdownButton.type = 'button';
+    dropdownButton.className = 'searchable-select-dropdown-btn';
+    dropdownButton.innerHTML = '▼';
+    dropdownButton.style.cssText = `
+      position: absolute;
+      right: 2px;
+      top: 2px;
+      bottom: 2px;
+      width: 20px;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      font-size: 12px;
+    `;
+    
+    // Crear el contenedor desplegable para las opciones
+    const dropdownContent = document.createElement('div');
+    dropdownContent.className = 'searchable-select-dropdown';
+    dropdownContent.style.cssText = `
+      display: none;
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 100%;
+      max-height: 200px;
+      overflow-y: auto;
+      background-color: #fff;
+      border: 1px solid #ddd;
+      border-top: none;
+      z-index: 1000;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    `;
+    
+    // REEMPLAZAR el select con nuestro componente
+    containerDiv.appendChild(inputElement);
+    containerDiv.appendChild(dropdownButton);
+    containerDiv.appendChild(dropdownContent);
+    
+    // Ocultar el select original pero mantenerlo en el DOM
+    selectElement.style.display = 'none';
+    
+    // Insertar el contenedor en el lugar del select
+    parentElement.insertBefore(containerDiv, selectElement);
+    
+    // Función para mostrar/ocultar las opciones
+    const toggleDropdown = () => {
+      const isVisible = dropdownContent.style.display === 'block';
+      dropdownContent.style.display = isVisible ? 'none' : 'block';
+      
+      if (!isVisible) {
+        actualizarOpcionesVisibles(inputElement.value.toLowerCase(), dropdownContent, selectElement);
+      }
+    };
+    
+    // Función para actualizar las opciones visibles
+    const actualizarOpcionesVisibles = (searchText, dropdown, select) => {
+      dropdown.innerHTML = '';
+      
+      // Opción "Todos"
+      const allOption = document.createElement('div');
+      allOption.className = 'searchable-select-option';
+      allOption.textContent = select.options[0].textContent;
+      allOption.style.cssText = `
+        padding: 8px;
+        cursor: pointer;
+        border-bottom: 1px solid #eee;
+      `;
+      
+      allOption.addEventListener('mouseenter', () => {
+        allOption.style.backgroundColor = '#f1f1f1';
+      });
+      
+      allOption.addEventListener('mouseleave', () => {
+        allOption.style.backgroundColor = '';
+      });
+      
+      allOption.addEventListener('click', () => {
+        inputElement.value = '';
+        select.value = '';
+        dropdown.style.display = 'none';
+        
+        const event = new Event('change');
+        select.dispatchEvent(event);
+      });
+      
+      dropdown.appendChild(allOption);
+      
+      // Opciones filtradas
+      for (let i = 1; i < select.options.length; i++) {
+        const option = select.options[i];
+        const optionText = option.textContent.toLowerCase();
+        
+        if (optionText.includes(searchText)) {
+          const optionElement = document.createElement('div');
+          optionElement.className = 'searchable-select-option';
+          optionElement.textContent = option.textContent;
+          optionElement.dataset.value = option.value;
+          optionElement.style.cssText = `
+            padding: 8px;
+            cursor: pointer;
+            border-bottom: 1px solid #eee;
+          `;
+          
+          optionElement.addEventListener('mouseenter', () => {
+            optionElement.style.backgroundColor = '#f1f1f1';
+          });
+          
+          optionElement.addEventListener('mouseleave', () => {
+            optionElement.style.backgroundColor = '';
+          });
+          
+          optionElement.addEventListener('click', () => {
+            inputElement.value = option.textContent;
+            select.value = option.value;
+            dropdown.style.display = 'none';
+            
+            const event = new Event('change');
+            select.dispatchEvent(event);
+          });
+          
+          dropdown.appendChild(optionElement);
+        }
+      }
+      
+      // Mensaje si no hay resultados
+      if (dropdown.children.length === 1 && searchText) {
+        const noResults = document.createElement('div');
+        noResults.textContent = 'No se encontraron resultados';
+        noResults.style.cssText = `
+          padding: 8px;
+          font-style: italic;
+          color: #999;
+        `;
+        dropdown.appendChild(noResults);
+      }
+    };
+    
+    // Event listeners
+    dropdownButton.addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleDropdown();
+    });
+    
+    inputElement.addEventListener('focus', () => {
+      dropdownContent.style.display = 'block';
+      actualizarOpcionesVisibles(inputElement.value.toLowerCase(), dropdownContent, selectElement);
+    });
+    
+    inputElement.addEventListener('input', () => {
+      dropdownContent.style.display = 'block';
+      actualizarOpcionesVisibles(inputElement.value.toLowerCase(), dropdownContent, selectElement);
+      
+      const searchText = inputElement.value.toLowerCase();
+      
+      // Búsqueda de coincidencia exacta
+      let exactMatch = false;
+      for (let i = 1; i < selectElement.options.length; i++) {
+        const option = selectElement.options[i];
+        if (option.textContent.toLowerCase() === searchText) {
+          selectElement.value = option.value;
+          exactMatch = true;
+          
+          const event = new Event('change');
+          selectElement.dispatchEvent(event);
+          break;
+        }
+      }
+      
+      // Si el campo está vacío, seleccionar "Todos"
+      if (searchText === '') {
+        selectElement.value = '';
+        const event = new Event('change');
+        selectElement.dispatchEvent(event);
+      }
+    });
+    
+    // Cerrar dropdown al hacer clic fuera
+    document.addEventListener('click', (e) => {
+      if (!containerDiv.contains(e.target)) {
+        dropdownContent.style.display = 'none';
+      }
+    });
+    
+    // Sincronizar input cuando cambia el select
+    selectElement.addEventListener('change', () => {
+      const selectedIndex = selectElement.selectedIndex;
+      if (selectedIndex === 0) {
+        inputElement.value = '';
+      } else {
+        inputElement.value = selectElement.options[selectedIndex].textContent;
+      }
+    });
+  });
+}
 
 
-
-// Función mejorada para actualizar un selector manteniendo su valor si es válido
+// Modificar la función de actualización de selectores para mantener 
+// Función modificada para actualizar selectores sin duplicados
 function actualizarSelector(idSelector, opciones, textoDefault, valorActual, esArticulo = false) {
   const selector = document.getElementById(idSelector);
   const valorAnterior = selector.value;
-
-  // Guardar el valor actual para comparar después
+  const inputSearch = document.getElementById(`${idSelector}-search`);
+  
+  // Actualizamos el selector original
   selector.innerHTML = `<option value="">${textoDefault}</option>`;
 
   opciones.forEach(opcion => {
@@ -2246,7 +2613,7 @@ function actualizarSelector(idSelector, opciones, textoDefault, valorActual, esA
     if (esArticulo && opcion.includes(' - ')) {
       const [codigo, nombre] = opcion.split(' - ');
       valor = codigo;
-      texto = opcion; // Mostramos código y nombre
+      texto = opcion;
     } else {
       valor = opcion;
       texto = opcion;
@@ -2255,7 +2622,7 @@ function actualizarSelector(idSelector, opciones, textoDefault, valorActual, esA
     selector.innerHTML += `<option value="${valor}">${texto}</option>`;
   });
 
-  // Intentar mantener el valor anterior si sigue siendo válido
+  // Mantener el valor anterior si es válido
   if (valorAnterior && opciones.some(opcion => {
     if (esArticulo && opcion.includes(' - ')) {
       return opcion.startsWith(valorAnterior + ' -');
@@ -2269,13 +2636,22 @@ function actualizarSelector(idSelector, opciones, textoDefault, valorActual, esA
     }
     return opcion === valorActual;
   })) {
-    // Si el valor actual es válido, usarlo
     selector.value = valorActual;
   } else {
-    // Si no es válido, limpiar la selección
     selector.value = '';
   }
+  
+  // SOLO actualizar el input si existe y sin crear duplicados
+  if (inputSearch) {
+    if (selector.value) {
+      const selectedIndex = selector.selectedIndex;
+      inputSearch.value = selector.options[selectedIndex].textContent;
+    } else {
+      inputSearch.value = '';
+    }
+  }
 }
+
 
 // Función para cargar los selectores iniciales
 function cargarSelectoresDesdeInitialData() {
@@ -2299,7 +2675,7 @@ function aplicarFiltros() {
 }
 
 
-// Configurar eventos para los controles UI
+// Función para setup sin duplicados
 function setupRackFilterUI() {
   const selectRack = document.getElementById('rack-filter');
   const focusBtn = document.getElementById('focus-rack');
@@ -2308,59 +2684,85 @@ function setupRackFilterUI() {
   const selectLote = document.getElementById('lote-filter');
   const resetBtn = document.getElementById('reset-filters');
 
-  // Cargar opciones de filtro iniciales
+  // Cargar opciones iniciales
   cargarSelectoresDesdeInitialData();
+  
+  // IMPORTANTE: Solo convertir una vez después de cargar los datos
+  // Verificar que no se han convertido ya
+  const clienteSearch = document.getElementById('cliente-filter-search');
+  if (!clienteSearch) {
+    convertirSelectoresABuscables();
+  }
 
-  // Evento para el filtro de rack
+  // Events para filtros (sin cambios)
   selectRack.addEventListener('change', () => {
-    // Al cambiar el rack, actualizamos todos los filtros en cascada
-    // y limpiamos los otros selectores
     selectCliente.value = '';
     selectArticulo.value = '';
     selectLote.value = '';
+    
+    // Limpiar también inputs de búsqueda si existen
+    const inputs = ['cliente-filter-search', 'articulo-filter-search', 'lote-filter-search'];
+    inputs.forEach(inputId => {
+      const input = document.getElementById(inputId);
+      if (input) input.value = '';
+    });
+    
     actualizarSelectores();
     aplicarFiltros();
-    // Opcional: enfocar automáticamente el rack seleccionado
     if (selectRack.value !== 'all') {
       enfocarRack(selectRack.value);
     }
   });
   
-  // Evento para el filtro de cliente
   selectCliente.addEventListener('change', () => {
-    // Al cambiar el cliente, actualizamos artículos y lotes
     selectArticulo.value = '';
     selectLote.value = '';
+    
+    // Limpiar inputs correspondientes
+    const articuloInput = document.getElementById('articulo-filter-search');
+    const loteInput = document.getElementById('lote-filter-search');
+    if (articuloInput) articuloInput.value = '';
+    if (loteInput) loteInput.value = '';
+    
     actualizarSelectores();
     aplicarFiltros();
   });
   
-  // Evento para el filtro de artículo
   selectArticulo.addEventListener('change', () => {
-    // Al cambiar el artículo, actualizamos solo los lotes
     selectLote.value = '';
+    
+    // Limpiar input de lote
+    const loteInput = document.getElementById('lote-filter-search');
+    if (loteInput) loteInput.value = '';
+    
     actualizarSelectores();
     aplicarFiltros();
   });
   
-  // Evento para el filtro de lote
   selectLote.addEventListener('change', () => {
     aplicarFiltros();
   });
   
-  // Botón para enfocar rack
   focusBtn.addEventListener('click', () => enfocarRack(selectRack.value));
   
-  // Botón para resetear filtros
   resetBtn.addEventListener('click', () => {
     selectRack.value = 'all';
     selectCliente.value = '';
     selectArticulo.value = '';
     selectLote.value = '';
+    
+    // Limpiar SOLO los campos de búsqueda que existen
+    const inputs = ['cliente-filter-search', 'articulo-filter-search', 'lote-filter-search'];
+    inputs.forEach(inputId => {
+      const input = document.getElementById(inputId);
+      if (input) input.value = '';
+    });
+    
     actualizarSelectores();
     aplicarFiltros();
   });
 }
+
 function cargarOpcionesFiltros() {
     const clientes = new Set();
     const articulos = new Set();
@@ -2803,31 +3205,70 @@ window.analizarOcupacionRacks = calcularOcupacionRacks;
 // Variable global para contar frames
 let frameCount = 0;
 
-// Actualiza la función toggleControls para cambiar el indicador
 function toggleControls() {
     isFirstPerson = !isFirstPerson;
     
+    // Deshabilitar controles durante la transición
+    orbitControls.enabled = false;
+    fpsControls.unlock();
+    
     if (isFirstPerson) {
-        // Cambiar a FPS
-        orbitControls.enabled = false;
-        fpsControls.lock();
-        currentControls = fpsControls;
-        camera.position.set(10, 1.6, 10); // Altura de persona (~1.6m)
-        modeIndicator.textContent = 'Modo: Primera Persona (WASD para mover, F para cambiar)';
+        console.log("Cambiando a modo Primera Persona...");
+        const target = orbitControls.target.clone();
+        camera.position.set(
+            target.x,
+            target.y + 1.6,  // Altura aproximada del personaje
+            target.z - 3    // Pequeño desplazamiento hacia atrás
+        );
+        
+        // Retraso para permitir la transición
+        setTimeout(() => {
+            try {
+                fpsControls.lock();
+                currentControls = fpsControls;
+                console.log("Modo Primera Persona activado");
+                updateUIMode();
+            } catch (error) {
+                console.error("Error al activar FPS:", error);
+            }
+        }, 150);
+        
     } else {
-        // Cambiar a Orbit
-        fpsControls.unlock();
-        orbitControls.enabled = true;
+        console.log("Cambiando a modo Órbita...");
+        orbitControls.reset();
         currentControls = orbitControls;
-        camera.position.set(40, 35, 40);
-        camera.lookAt(15, 5, 20);
-        modeIndicator.textContent = 'Modo: Órbita (Presiona F para cambiar)';
+        orbitControls.enabled = true;
+        
+        // Posición orbital
+        const target = orbitControls.target;
+        camera.position.set(
+            target.x + 25,
+            target.y + 20,
+            target.z + 25
+        );
+        camera.lookAt(target);
+        updateUIMode();
     }
     
     needsRender = true;
+    renderer.render(scene, camera);
+}
+
+function updateUIMode() {
+    if (!modeIndicator) {
+        console.warn("Elemento modeIndicator no encontrado");
+        return;
+    }
+    
+    modeIndicator.textContent = isFirstPerson 
+        ? 'Modo: Primera Persona (WASD: mover | F: órbita)'
+        : 'Modo: Órbita (Mouse: rotar | F: primera persona)';
+    
+    console.log("UI actualizada:", modeIndicator.textContent);
 }
 // Optimización para el renderizado - mantener esto como estaba
 function init() {
+    cargarDatosDesdeAPI();
     actualizarConfiguracion();
     inicializarRacks(); // Primero crea los racks
     createGrid();
@@ -2870,10 +3311,12 @@ function animate() {
         const camera = fpsControls.getObject();
         const direction = new THREE.Vector3();
         
-        // Obtener la dirección de la cámara (hacia donde mira)
-        camera.getWorldDirection(direction);
-        direction.y = 0; // Mantener movimiento en plano horizontal
-        direction.normalize();
+         
+      // 1. Obtener la dirección hacia adelante (W)
+      camera.getWorldDirection(direction);
+      direction.y = 0; // Ignorar componente vertical
+      direction.normalize();
+      
         
         // Calcular dirección derecha (para movimiento lateral)
         const right = new THREE.Vector3();
@@ -2889,11 +3332,11 @@ function animate() {
         if (moveState.backward) {
             camera.position.addScaledVector(direction, -moveSpeed);
         }
-        if (moveState.left) {
-            camera.position.addScaledVector(right, -moveSpeed);
+        if (moveState.left) {     // A: Derecha (invertido)
+    camera.position.addScaledVector(right, moveSpeed); // Cambiado de -moveSpeed a +moveSpeed
         }
-        if (moveState.right) {
-            camera.position.addScaledVector(right, moveSpeed);
+        if (moveState.right) {    // D: Izquierda (invertido)
+            camera.position.addScaledVector(right, -moveSpeed); // Cambiado de +moveSpeed a -moveSpeed
         }
         
         needsRender = true;
