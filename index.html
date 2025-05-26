@@ -1706,40 +1706,45 @@ const MAPA_RECORRIDO_EXTENDIDO = {
         };
     },
     
-    // Calcular posición física desde rack lógico
-    calcularPosicionFisica(rackLogico, seccionLogica) {
-        const racksArray = Object.keys(this.racks);
-        const rackLogIndex = racksArray.indexOf(rackLogico);
-        
-        if (rackLogIndex === -1) {
-            return { rack: rackLogico, seccion: seccionLogica - 1, lado: 'A' };
-        }
-        
-        const seccionesRackLogico = this.racks[rackLogico].seccionesReales;
-        
-        // Si la sección está dentro del rango del rack lógico
-        if (seccionLogica <= seccionesRackLogico) {
-            return {
-                rack: rackLogico,
-                seccion: seccionLogica - 1,
-                lado: rackLogico === 'A' ? 'A' : 'B'  // Rack A solo tiene cara A
-            };
-        }
-        
-        // Si la sección excede el rack, buscar en el siguiente rack físico
-        const rackFisicoSiguiente = racksArray[rackLogIndex + 1];
-        if (rackFisicoSiguiente) {
-            const seccionEnSiguiente = seccionLogica - seccionesRackLogico;
-            return {
-                rack: rackFisicoSiguiente,
-                seccion: seccionEnSiguiente - 1,
-                lado: 'A'
-            };
-        }
-        
-        // Fallback
+   // Calcular posición física desde rack lógico
+calcularPosicionFisica(rackLogico, seccionLogica) {
+    const racksArray = Object.keys(this.racks);
+    const rackLogIndex = racksArray.indexOf(rackLogico);
+    
+    if (rackLogIndex === -1) {
         return { rack: rackLogico, seccion: seccionLogica - 1, lado: 'A' };
     }
+    
+    const seccionesRackLogico = this.racks[rackLogico].seccionesReales;
+    
+    // Si la sección está dentro del rango del rack lógico
+    if (seccionLogica <= seccionesRackLogico) {
+        return {
+            rack: rackLogico,
+            seccion: seccionLogica - 1,
+            lado: rackLogico === 'A' ? 'A' : 'B'  // Rack A solo tiene cara A
+        };
+    }
+    
+    // Si la sección excede el rack, buscar en el siguiente rack físico
+    const rackFisicoSiguiente = racksArray[rackLogIndex + 1];
+    if (rackFisicoSiguiente) {
+        const seccionEnSiguiente = seccionLogica - seccionesRackLogico;
+        
+        // CAMBIO: Invertir el orden para que empiece desde atrás
+        const seccionesRackSiguiente = this.racks[rackFisicoSiguiente].seccionesReales;
+        const seccionInvertida = seccionesRackSiguiente - seccionEnSiguiente;
+        
+        return {
+            rack: rackFisicoSiguiente,
+            seccion: seccionInvertida,
+            lado: 'A'
+        };
+    }
+    
+    // Fallback
+    return { rack: rackLogico, seccion: seccionLogica - 1, lado: 'A' };
+}
 };
 
 // Modificación completa para corregir el posicionamiento en los racks
