@@ -626,10 +626,7 @@
     <option value="">Todos los artículos</option>
   </select>
   
-  <label for="lote-filter">Lote:</label>
-  <select id="lote-filter">
-    <option value="">Todos los lotes</option>
-  </select>
+ 
   
   <button id="focus-rack">Enfocar Rack</button>
   <button id="reset-filters">Resetear Filtros</button>
@@ -652,8 +649,7 @@
   renderer.autoClear = false;
   renderer.shadowMap.enabled = false;
   
-    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000); // Crear vista de camara, zoom y perspectiva, relacion aspecto para que la camara se adapte dinamicamente, cuanto me puedo acercar y alejar
-    // OPTIMIZACIÓN: Configurar frustum culling reduciendo el "far" de la cámara 
+const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.5, 300); // Reducir FOV y far    // OPTIMIZACIÓN: Configurar frustum culling reduciendo el "far" de la cámara 
     camera.far = 350;
     camera.updateProjectionMatrix(); // Actualizar la matriz de proyección después de cambiar el "far"
     // 2. CONFIGURACIÓN INICIAL
@@ -667,9 +663,8 @@
     // 3. CONTROLES Y LUCES
     const orbitControls = new OrbitControls(camera, renderer.domElement); // Renombramos a orbitControls
     orbitControls.enableDamping = true;
-    orbitControls.dampingFactor = 0.05;
-    orbitControls.target.set(0, 3, 0);
-
+     orbitControls.enableDamping = false; // Deshabilitar damping para mejor rendimiento
+    orbitControls.rotateSpeed = 0.5; // Reducir velocidad de rotación
     // Crear controles FPS
     const fpsControls = new PointerLockControls(camera, renderer.domElement);
     scene.add(fpsControls.getObject());
@@ -698,12 +693,14 @@
     const moveSpeed = 0.2; // Velocidad de movimiento
     const verticalSpeed = 0.15;  // Velocidad vertical (un poco más lenta que la horizontal)
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5); // Luz ambiental de todo el entorno
-    scene.add(ambientLight); 
-    
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8); //Luz direccional que simula el sol
-    directionalLight.position.set(5, 10, 7); //Posicion de la luz
-    scene.add(directionalLight);
+  const ambientLight = new THREE.AmbientLight(0xffffff, 0.4); // Reducir intensidad
+  scene.add(ambientLight);
+
+  // Usar solo 1 luz direccional con sombras solo donde sea necesario
+  const directionalLight = new THREE.DirectionalLight(0xffffff, 0.6); // Reducir intensidad
+  directionalLight.position.set(5, 10, 7);
+  directionalLight.castShadow = false; // Deshabilitar sombras para mejor rendimiento
+  scene.add(directionalLight);
 
     // 4. VARIABLES GLOBALES 
     let selectedBox = null; // Caja actualmente clickeada
@@ -712,6 +709,39 @@
     const columns = []; // Array de las columnas
     const bases = []; // Placas abajo de las cajas
     let pendingAddPosition = null; // Almacena la posición para añadir una nueva caja
+    // Variables globales para almacenar datos de las APIs
+  // Variables globales para almacenar datos de las APIs
+let clientesData = [];
+let articulosData = {};
+
+// Función para cargar artículos de un cliente desde la API
+
+// Función para cargar datos de clientes desde la API
+async function cargarClientesDesdeAPI() {
+  try {
+    const response = await fetch('http://129.146.161.23/BackEnd_Orion/lista_divisiones.php?lista');
+    if (!response.ok) throw new Error('Error al cargar clientes');
+    clientesData = await response.json();
+    return clientesData;
+  } catch (error) {
+    console.error('Error cargando clientes:', error);
+    return [];
+  }
+}
+
+// Función para cargar artículos de un cliente desde la API
+async function cargarArticulosDeCliente(coddiv) {
+  try {
+    const response = await fetch(`http://129.146.161.23/BackEnd_Orion/lista_divisiones.php?articulos&coddiv=${coddiv}`);
+    if (!response.ok) throw new Error('Error al cargar artículos');
+    const data = await response.json();
+    articulosData[coddiv] = data;
+    return data;
+  } catch (error) {
+    console.error('Error cargando artículos:', error);
+    return [];
+  }
+}
 
  // Modificamos las funciones principales que afectan al posicionamiento
 
@@ -815,6 +845,7 @@ function crearIndicadorCarga() {
     return overlay;
 }
 
+
 // Eliminar el indicador de carga
 function eliminarIndicadorCarga() {
     const overlay = document.getElementById('loading-overlay');
@@ -851,6 +882,8 @@ async function cargarDatosDesdeAPI() {
         setupRackFilterUI();
         setupInteraccion(); // <- Aquí es donde harás la carga bajo demanda
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+        renderer.antialias = false; // Deshabilitar antialiasing para mejor rendimiento
+        renderer.shadowMap.enabled = false; // Deshabilitar sombras completamente
 
         window.addEventListener('resize', _.debounce(() => {
             camera.aspect = window.innerWidth / window.innerHeight;
@@ -884,6 +917,7 @@ async function cargarDetallesCaja(cajaId) {
         throw error;
     }
 }
+
 
 // Función para seleccionar caja y mostrar modal (MODIFICADA)
 async function seleccionarCaja(caja) {
@@ -1262,48 +1296,118 @@ function createGrid() {
 
 
 
-// Usar MeshStandardMaterial solo cuando sea necesario (para cajas con sombras)
+// Sistema optimizado de materiales con instancias compartidas
+const MaterialManager = {
+    materials: {},
+    
+    getMaterial: function(type, color) {
+        const key = `${type}_${color}`;
+        if (!this.materials[key]) {
+            const params = {
+                color: color,
+                metalness: type === 'standard' ? 0.3 : 0,
+                roughness: type === 'standard' ? 0.5 : 1
+            };
+            
+            this.materials[key] = type === 'standard' 
+                ? new THREE.MeshStandardMaterial(params)
+                : new THREE.MeshBasicMaterial(params);
+        }
+        return this.materials[key];
+    }
+};
+
+// Uso de materiales básicos para mejor rendimiento
 const sharedMaterials = {
-    rackPost: new THREE.MeshStandardMaterial({ color: 0x1a5fb4 }),
-    rackBeam: new THREE.MeshStandardMaterial({ color: 0xe95420 }),
-    palet: new THREE.MeshStandardMaterial({ color: 0x8a5700 }),
+    rackPost: MaterialManager.getMaterial('basic', 0x1a5fb4),
+    rackBeam: MaterialManager.getMaterial('basic', 0xe95420),
+    palet: MaterialManager.getMaterial('basic', 0x8a5700),
     line: new THREE.LineBasicMaterial({ color: 0x5c3d1a })
 };
 
-// Usar instancias de BufferGeometry en lugar de Geometry (más eficiente)
-const sharedGeometries = {
-    post: new THREE.BoxBufferGeometry(0.15, 1, 0.15),
-    beam: new THREE.BoxBufferGeometry(1, 0.08, 0.08),
-    palet: new THREE.BoxBufferGeometry(0.8, 0.12, config.cellSizeZ * 0.85)
+// Sistema de geometrías compartidas con disposición automática
+const GeometryPool = {
+    geometries: {},
+    
+    getGeometry: function(type, ...dimensions) {
+        const key = `${type}_${dimensions.join('_')}`;
+        if (!this.geometries[key]) {
+            switch(type) {
+                case 'box':
+                    this.geometries[key] = new THREE.BoxBufferGeometry(...dimensions);
+                    break;
+                case 'plane':
+                    this.geometries[key] = new THREE.PlaneBufferGeometry(...dimensions);
+                    break;
+                // Puedes añadir más tipos según necesites
+            }
+        }
+        return this.geometries[key];
+    }
 };
 
-function crearRack(posicionInicial, longitud, letraRack, niveles = 8, dobleCara = true, numeroSecciones = null){
-    // Ajustar posiciones al grid
+// Uso de geometrías compartidas
+const sharedGeometries = {
+    post: GeometryPool.getGeometry('box', 0.15, 1, 0.15),
+    beam: GeometryPool.getGeometry('box', 1, 0.08, 0.08),
+    palet: GeometryPool.getGeometry('box', 0.8, 0.12, config.cellSizeZ * 0.85)
+};
+// Pool de materiales y geometrías compartidas
+const ResourcePool = {
+    materials: {},
+    geometries: {},
+    
+    getMaterial: function(color) {
+        const key = color.toString();
+        if (!this.materials[key]) {
+            this.materials[key] = new THREE.MeshStandardMaterial({
+                color: color,
+                metalness: 0.3,
+                roughness: 0.5
+            });
+        }
+        return this.materials[key];
+    },
+    
+    getBoxGeometry: function() {
+        if (!this.geometries.box) {
+            this.geometries.box = new THREE.BoxGeometry(
+              config.anchoCaja, 
+              config.alturaCaja, 
+              config.profundidadCaja
+            );
+        }
+        return this.geometries.box;
+    }
+};
+
+function crearRack(posicionInicial, longitud, letraRack, niveles = 8, dobleCara = true, numeroSecciones = null) {
+    // 1. Configuración inicial optimizada
     const posInicioX = config.primerRackX;
     const posZ = posicionInicial.z;
     
     const rack = new THREE.Group();
     rack.position.set(posInicioX, 0, posZ);
     
+    // 2. Pre-cálculo de dimensiones (optimizado)
     const anchuraRack = config.cellSizeX * longitud;
     const espacioEntreNiveles = config.alturaCaja + 0.2;
     const alturaRack = espacioEntreNiveles * niveles;
-    
-    // CAMBIO: Ajustar profundidad para racks de una cara
     const profundidadRack = config.cellSizeZ * (dobleCara ? 1.9 : 0.95);
     const halfProf = profundidadRack / 2;
-    
-    // Configuración fija de palets
+
+    // 3. Configuración de palets (optimizada para reutilización)
     const configPalets = {
         ancho: 0.9,
         separacion: 0.3,
         margenSeccion: 0.3,
         paletsPorSeccion: {
-            niveles0y1: 3,  // Primeros 2 niveles
-            otrosNiveles: 2  // Niveles superiores
+            niveles0y1: 3,
+            otrosNiveles: 2
         }
     };
 
+    // 4. Cálculo de secciones (optimizado)
     const anchoSeccion = calcularAnchoSeccion(
         configPalets.paletsPorSeccion.niveles0y1,
         configPalets.ancho,
@@ -1311,132 +1415,95 @@ function crearRack(posicionInicial, longitud, letraRack, niveles = 8, dobleCara 
         configPalets.margenSeccion
     );
 
-    if (!numeroSecciones) {
-        numeroSecciones = Math.floor(anchuraRack / anchoSeccion);
-    }
-
-    
+    numeroSecciones = numeroSecciones || Math.floor(anchuraRack / anchoSeccion);
     const anchuraRackAjustada = numeroSecciones * anchoSeccion;
     const halfAncho = anchuraRackAjustada / 2;
 
-    console.log(`Creando rack con ${numeroSecciones} secciones de ancho ${anchoSeccion}`);
+    // 5. Creación de geometrías compartidas (optimizado)
+    const postGeometry = new THREE.BoxBufferGeometry(0.15, 1, 0.15);
+    const beamGeometry = new THREE.BoxBufferGeometry(1, 0.08, 0.08);
     
-    // PASO 2: Crear estructura base (postes en cada división de sección)
+    
+    // 6. Creación de postes (optimizado con instancias)
     for (let seccion = 0; seccion <= numeroSecciones; seccion++) {
         const xPos = -halfAncho + (seccion * anchoSeccion);
         
-        // Poste frontal (usando recursos compartidos)
-        const posteFrontal = new THREE.Mesh(sharedGeometries.post, sharedMaterials.rackPost);
-        posteFrontal.scale.set(1, alturaRack, 1); // Escalar altura
+        const posteFrontal = new THREE.Mesh(postGeometry, sharedMaterials.rackPost);
+        posteFrontal.scale.set(1, alturaRack, 1);
         posteFrontal.position.set(xPos, alturaRack/2, -halfProf);
         rack.add(posteFrontal);
         
-        // Postes traseros solo si es doble cara
         if (dobleCara) {
-            const posteTrasero = new THREE.Mesh(sharedGeometries.post, sharedMaterials.rackPost);
+            const posteTrasero = new THREE.Mesh(postGeometry, sharedMaterials.rackPost);
             posteTrasero.scale.set(1, alturaRack, 1);
             posteTrasero.position.set(xPos, alturaRack/2, halfProf);
             rack.add(posteTrasero);
         }
     }
 
-    // PASO 3: Travesaños horizontales (optimizados)
+    // 7. Creación de travesaños (optimizado)
     for (let nivel = 0; nivel < niveles; nivel++) {
         const alturaActual = nivel * espacioEntreNiveles;
         
-        // Travesaño frontal
-        const travesanoFrontal = new THREE.Mesh(sharedGeometries.beam, sharedMaterials.rackBeam);
+        const travesanoFrontal = new THREE.Mesh(beamGeometry, sharedMaterials.rackBeam);
         travesanoFrontal.scale.set(anchuraRackAjustada + 0.1, 1, 1);
         travesanoFrontal.position.set(0, alturaActual, -halfProf);
         rack.add(travesanoFrontal);
         
         if (dobleCara) {
-            const travesanoTrasero = new THREE.Mesh(sharedGeometries.beam, sharedMaterials.rackBeam);
+            const travesanoTrasero = new THREE.Mesh(beamGeometry, sharedMaterials.rackBeam);
             travesanoTrasero.scale.set(anchuraRackAjustada + 0.1, 1, 1);
             travesanoTrasero.position.set(0, alturaActual, halfProf);
             rack.add(travesanoTrasero);
         }
         
-        // PASO 4: Determinar número fijo de palets según el nivel
+        // 8. Colocación de palets (optimizada)
         const paletsPorSeccion = nivel < 2 ? 
             configPalets.paletsPorSeccion.niveles0y1 : 
             configPalets.paletsPorSeccion.otrosNiveles;
         
-        // PASO 5: Colocar palets en cada sección
         for (let seccion = 0; seccion < numeroSecciones; seccion++) {
-            // Calcular posición inicial de la sección
             const inicioSeccion = -halfAncho + (seccion * anchoSeccion);
-            
-            // Determinar si hay suficiente espacio para los palets con su tamaño original
             const espacioNecesarioOriginal = (2 * configPalets.margenSeccion) +
                                           (paletsPorSeccion * configPalets.ancho) +
                                           ((paletsPorSeccion - 1) * configPalets.separacion);
             
-            // Decidir si ajustar el tamaño de los palets
             let anchoPalet, separacion;
             
             if (espacioNecesarioOriginal <= anchoSeccion) {
-                // Hay suficiente espacio, mantener tamaños originales
                 anchoPalet = configPalets.ancho;
                 separacion = configPalets.separacion;
-                
-                // Centrar palets en la sección
                 const espacioSobrante = anchoSeccion - espacioNecesarioOriginal;
                 const margenAjustado = configPalets.margenSeccion + (espacioSobrante / 2);
                 
-                // Colocar palets de tamaño original
                 for (let i = 0; i < paletsPorSeccion; i++) {
-                    const posX = inicioSeccion + margenAjustado + 
-                                (i * (anchoPalet + separacion)) + (anchoPalet / 2);
-                    
-                    // Palet frontal (siempre presente)
+                    const posX = inicioSeccion + margenAjustado + (i * (anchoPalet + separacion)) + (anchoPalet / 2);
                     crearPaletMejorado(rack, posX, alturaActual, -halfProf + 0.2, anchoPalet);
-                    
-                    // Palet trasero solo si es doble cara
-                    if (dobleCara) {
-                        crearPaletMejorado(rack, posX, alturaActual, halfProf - 0.2, anchoPalet);
-                    }
+                    if (dobleCara) crearPaletMejorado(rack, posX, alturaActual, halfProf - 0.2, anchoPalet);
                 }
             } else {
-                // No hay suficiente espacio, AJUSTAR tamaños para mantener el número de palets
-                // Reducir primero la separación al mínimo necesario (0.1)
                 const separacionMinima = 0.1;
                 const margenMinimo = 0.1;
-                
-                // Espacio disponible para los palets después de restar márgenes mínimos
                 const espacioDisponible = anchoSeccion - (2 * margenMinimo);
-                
-                // Calcular ancho de palet con separación mínima
                 separacion = separacionMinima;
                 anchoPalet = (espacioDisponible - ((paletsPorSeccion - 1) * separacionMinima)) / paletsPorSeccion;
                 
-                // Colocar palets de tamaño ajustado
                 for (let i = 0; i < paletsPorSeccion; i++) {
-                    const posX = inicioSeccion + margenMinimo + 
-                                (i * (anchoPalet + separacion)) + (anchoPalet / 2);
-                    
-                    // Palet frontal (siempre presente)
+                    const posX = inicioSeccion + margenMinimo + (i * (anchoPalet + separacion)) + (anchoPalet / 2);
                     crearPaletMejorado(rack, posX, alturaActual, -halfProf + 0.2, anchoPalet);
-                    
-                    // Palet trasero solo si es doble cara
-                    if (dobleCara) {
-                        crearPaletMejorado(rack, posX, alturaActual, halfProf - 0.2, anchoPalet);
-                    }
+                    if (dobleCara) crearPaletMejorado(rack, posX, alturaActual, halfProf - 0.2, anchoPalet);
                 }
             }
         }
     }
     
-    // Etiqueta y metadatos
+    // 9. Etiqueta y metadatos (optimizado)
     crearEtiquetaRack(rack, letraRack, anchuraRackAjustada, alturaRack, halfProf);
     
     rack.userData = {
         tipoObjeto: 'rack',
         letra: letraRack,
-        posInicio: {
-            x: posInicioX - halfAncho, // Coordenada X real del inicio del rack (borde izquierdo)
-            z: posZ
-        },
+        posInicio: { x: posInicioX - halfAncho, z: posZ },
         longitud: anchuraRackAjustada,
         anchura: anchuraRackAjustada,
         profundidad: profundidadRack,
@@ -1445,11 +1512,9 @@ function crearRack(posicionInicial, longitud, letraRack, niveles = 8, dobleCara 
         niveles: niveles,
         espacioEntreNiveles: espacioEntreNiveles,
         secciones: numeroSecciones,
-        numeroSecciones: numeroSecciones, // Para mantener consistencia con el código anterior
+        numeroSecciones: numeroSecciones,
         anchoSeccion: anchoSeccion,
-        configPalets: {
-            ...configPalets
-        },
+        configPalets: { ...configPalets },
         paletsPorNivel: {
             '0-1': configPalets.paletsPorSeccion.niveles0y1,
             '2+': configPalets.paletsPorSeccion.otrosNiveles
@@ -1461,16 +1526,14 @@ function crearRack(posicionInicial, longitud, letraRack, niveles = 8, dobleCara 
     scene.add(rack);
     return rack;
 }
-
 function crearEtiquetaRack(rack, letraRack, anchuraRack, alturaRack, profundidad) {
     // Crear canvas para generar la imagen del texto
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
 
-    // Tamaño del canvas (ajustable según calidad deseada)
-    canvas.width = 1024;   // Ancho total
-    canvas.height = 256;   // Alto total
-
+      // Por esto:
+      canvas.width = 512;
+      canvas.height = 128;
     // === Dibujar borde negro ===
     const padding = 40; // Grosor del borde negro externo
     const innerPadding = 20; // Espacio entre texto y fondo blanco
@@ -1531,7 +1594,7 @@ function crearEtiquetaRack(rack, letraRack, anchuraRack, alturaRack, profundidad
 
 
 // Usar geometrías compartidas para los palets
-const sharedPaletGeometry = new THREE.BoxGeometry(0.8, 0.12, config.cellSizeZ * 0.85);
+const sharedPaletGeometry = new THREE.BoxBufferGeometry(0.8, 0.12, config.cellSizeZ * 0.85);
 const sharedPaletMaterial = new THREE.MeshBasicMaterial({ color: 0x8a5700 });
 const sharedLineMaterial = new THREE.LineBasicMaterial({ color: 0x5c3d1a });
 
@@ -1598,59 +1661,86 @@ function crearCrucesRefuerzoSimple(rack, anchuraSeccion, alturaRack, profundidad
     rack.add(cruzFrontal);
 }
 
-// 6. Modifica la función que inicializa los racks para usar el nuevo sistema
-function inicializarRacks() {
-    const distanciaEntreRacks = 3;
-    let posicionZActual = config.margenAlrededor;
 
-       // Obtener todos los racks únicos mencionados en initialData
-       const racksNecesarios = new Set();
-    initialData.forEach(item => {
-        if (item.id && item.id.match(/^[A-Z]\d{2}[A-Z]\d{2}$/)) {
-            racksNecesarios.add(item.id.charAt(0)); // Extraer la letra del rack
+// ============================================================================
+// REEMPLAZO DIRECTO DE FUNCIONES EXISTENTES
+// ============================================================================
+// Estas funciones reemplazan directamente las que tienes en tu código
+
+// 1. SISTEMA DE MAPEO EXTENDIDO (reemplaza la lógica anterior)
+const MAPA_RECORRIDO_EXTENDIDO = {
+    // Configuración: cada rack y cuántas secciones maneja
+    racks: {
+        'A': { seccionesReales: 17, dobleCara: false },  // Solo cara frontal
+        'B': { seccionesReales: 17, dobleCara: true },   // Doble cara
+        'C': { seccionesReales: 17, dobleCara: true },
+        'D': { seccionesReales: 14, dobleCara: true },
+        'E': { seccionesReales: 13, dobleCara: true },
+        'F': { seccionesReales: 12, dobleCara: true },
+        'G': { seccionesReales: 10, dobleCara: true },
+        'H': { seccionesReales: 11, dobleCara: true },
+        'I': { seccionesReales: 9, dobleCara: true },
+        'J': { seccionesReales: 8, dobleCara: false }    // Solo cara frontal
+    },
+    
+    // Calcular qué rack lógico corresponde a una posición física
+    calcularRackLogico(rackFisico, seccionFisica, lado) {
+        const rackIndex = Object.keys(this.racks).indexOf(rackFisico);
+        
+        if (rackIndex === -1) return { rack: rackFisico, seccion: seccionFisica };
+        
+        // Para la cara izquierda (A), usar el rack anterior (excepto rack A)
+        if (lado === 'A' && rackIndex > 0) {
+            const rackAnterior = Object.keys(this.racks)[rackIndex - 1];
+            const seccionesRackAnterior = this.racks[rackAnterior].seccionesReales;
+            return {
+                rack: rackAnterior,
+                seccion: seccionesRackAnterior + seccionFisica
+            };
         }
-    });
-
-    // Si no hay racks en los datos, usar uno por defecto (A)
-    if (racksNecesarios.size === 0) {
-        racksNecesarios.add('A');
+        
+        // Para la cara derecha (B) o rack A, usar el rack actual
+        return {
+            rack: rackFisico,
+            seccion: seccionFisica
+        };
+    },
+    
+    // Calcular posición física desde rack lógico
+    calcularPosicionFisica(rackLogico, seccionLogica) {
+        const racksArray = Object.keys(this.racks);
+        const rackLogIndex = racksArray.indexOf(rackLogico);
+        
+        if (rackLogIndex === -1) {
+            return { rack: rackLogico, seccion: seccionLogica - 1, lado: 'A' };
+        }
+        
+        const seccionesRackLogico = this.racks[rackLogico].seccionesReales;
+        
+        // Si la sección está dentro del rango del rack lógico
+        if (seccionLogica <= seccionesRackLogico) {
+            return {
+                rack: rackLogico,
+                seccion: seccionLogica - 1,
+                lado: rackLogico === 'A' ? 'A' : 'B'  // Rack A solo tiene cara A
+            };
+        }
+        
+        // Si la sección excede el rack, buscar en el siguiente rack físico
+        const rackFisicoSiguiente = racksArray[rackLogIndex + 1];
+        if (rackFisicoSiguiente) {
+            const seccionEnSiguiente = seccionLogica - seccionesRackLogico;
+            return {
+                rack: rackFisicoSiguiente,
+                seccion: seccionEnSiguiente - 1,
+                lado: 'A'
+            };
+        }
+        
+        // Fallback
+        return { rack: rackLogico, seccion: seccionLogica - 1, lado: 'A' };
     }
-
-    console.log(`Creando racks: ${Array.from(racksNecesarios).join(', ')}`);
-
-    const configRacks = {
-        'A': { posInicio: { x: config.primerRackX, z: posicionZActual }, longitud: 35, dobleCara: false, numeroSecciones: 15 },
-        'B': { posInicio: { x: config.primerRackX, z: posicionZActual += 5 + distanciaEntreRacks }, longitud: 35, dobleCara: true, numeroSecciones: 12 },
-        'C': { posInicio: { x: config.primerRackX, z: posicionZActual += 5 + distanciaEntreRacks }, longitud: 35, dobleCara: true, numeroSecciones: 10 },
-        'D': { posInicio: { x: config.primerRackX, z: posicionZActual += 5 + distanciaEntreRacks }, longitud: 35, dobleCara: true, numeroSecciones: 14 },
-        'E': { posInicio: { x: config.primerRackX, z: posicionZActual += 5 + distanciaEntreRacks }, longitud: 35, dobleCara: true, numeroSecciones: 13 },
-        'F': { posInicio: { x: config.primerRackX, z: posicionZActual += 5 + distanciaEntreRacks + 5 }, longitud: 35, dobleCara: true, numeroSecciones: 12 },
-        'G': { posInicio: { x: config.primerRackX, z: posicionZActual += 5 + distanciaEntreRacks }, longitud: 35, dobleCara: true, numeroSecciones: 10 },
-        'H': { posInicio: { x: config.primerRackX, z: posicionZActual += 5 + distanciaEntreRacks }, longitud: 35, dobleCara: true, numeroSecciones: 11 },
-        'I': { posInicio: { x: config.primerRackX, z: posicionZActual += 5 + distanciaEntreRacks }, longitud: 35, dobleCara: true, numeroSecciones: 9 },
-        'J': { posInicio: { x: config.primerRackX, z: posicionZActual += 5 + distanciaEntreRacks }, longitud: 35, dobleCara: false, numeroSecciones: 8 }
-    };
-       // Crear solo los racks necesarios
-       Array.from(racksNecesarios).forEach(letraRack => {
-        if (configRacks[letraRack]) {
-            const rackInfo = configRacks[letraRack];
-            crearRack(
-                rackInfo.posInicio,
-                rackInfo.longitud, 
-                letraRack,
-                7, // niveles
-                rackInfo.dobleCara,
-                rackInfo.numeroSecciones
-            );
-            // Actualizar posición Z para el próximo rack
-            posicionZActual = rackInfo.posInicio.z + 5 + distanciaEntreRacks;
-        } else {
-            console.warn(`No hay configuración para el rack ${letraRack}`);
-        }
-    });
-}
-
-
+};
 
 // Modificación completa para corregir el posicionamiento en los racks
 // Esta solución asegura que secciones empiecen desde la izquierda (01) y respeta el tamaño de cada rack
@@ -1659,65 +1749,27 @@ function inicializarRacks() {
 function obtenerParametrosPosicion(item) {
     // Si el item tiene un ID estructurado (ej: "C25F02")
     if (item.id && item.id.match(/^[A-Z]\d{2}[A-Z]\d{2}$/)) {
-        const rack = item.id.charAt(0);
-        
-        // Extraer el número de sección del ID
-        const seccionOriginal = parseInt(item.id.substring(1, 3));
-        
-        // Encontrar el rack correspondiente para obtener su configuración
-        const rackObj = scene.children.find(obj => 
-            obj.userData?.tipoObjeto === 'rack' && 
-            obj.userData?.letra === rack
-        );
-        
-        if (!rackObj) {
-            console.error(`No se encontró el rack ${rack}`);
-            return { rack, columna: 0, nivel: 0, palet: 0, lado: "A" };
-        }
-        
-        // Obtener el número real de secciones en este rack
-        const numSecciones = rackObj.userData.numeroSecciones || rackObj.userData.secciones;
-        const dobleCara = rackObj.userData.dobleCara;
-        
-        // Calcular lado y sección real basado en la numeración extendida
-        let seccion, lado;
-        
-        if (dobleCara) {
-            // Para racks de doble cara:
-            // Si la sección pedida es mayor que el número real de secciones,
-            // entonces es la cara trasera (lado B)
-            if (seccionOriginal > numSecciones) {
-                // La sección en la cara trasera (comenzando desde la derecha)
-                seccion = (2 * numSecciones) - seccionOriginal;
-                lado = "B";
-            } else {
-                // La sección en la cara frontal
-                seccion = seccionOriginal - 1; // Convertir a base 0
-                lado = "A";
-            }
-        } else {
-            // Para racks de una sola cara, siempre usar el frente
-            seccion = (seccionOriginal - 1) % numSecciones;
-            lado = "A";
-        }
-        
-        // Extraer nivel y palet
+        const rackLogico = item.id.charAt(0);
+        const seccionLogica = parseInt(item.id.substring(1, 3));
         const nivelLetra = item.id.charAt(3);
         const nivel = nivelLetra.charCodeAt(0) - 65; // A=0, B=1, etc.
-        const palet = parseInt(item.id.substring(4, 6)) - 1; // Convertir "01" → 0, "02" → 1, etc.
+        const palet = parseInt(item.id.substring(4, 6)) - 1; // Convertir "01" → 0
         
-        return { 
-            rack, 
-            columna: seccion, 
-            nivel, 
-            palet, 
-            lado 
+        // Calcular posición física usando el nuevo sistema
+        const posicionFisica = MAPA_RECORRIDO_EXTENDIDO.calcularPosicionFisica(rackLogico, seccionLogica);
+        
+        return {
+            rack: posicionFisica.rack,
+            columna: posicionFisica.seccion,
+            nivel: nivel,
+            palet: palet,
+            lado: posicionFisica.lado
         };
     }
     // Si el item tiene propiedades separadas (para compatibilidad)
     else {
         return {
-            rack: item.rack,
+            rack: item.rack || 'A',
             columna: (item.seccion !== undefined) ? item.seccion : 0,
             nivel: item.nivel !== undefined ? item.nivel : 0,
             palet: item.palet !== undefined ? item.palet : 0,
@@ -1727,48 +1779,228 @@ function obtenerParametrosPosicion(item) {
 }
 
 
+
 // Modificación de la función de generación de IDs para asegurar coherencia
 function generarIDDesdePosicion(rack, seccion, nivel, palet, lado = "A") {
-    // Encontrar el rack correspondiente
-    const rackObj = scene.children.find(obj => 
-        obj.userData?.tipoObjeto === 'rack' && 
-        obj.userData?.letra === rack
-    );
+    // Calcular el rack lógico y sección lógica
+    const logico = MAPA_RECORRIDO_EXTENDIDO.calcularRackLogico(rack, seccion + 1, lado);
     
-    if (!rackObj) {
-        console.error(`No se encontró el rack ${rack} para generar ID`);
-        return `${rack}${String(seccion + 1).padStart(2, '0')}${String.fromCharCode(65 + nivel)}${String(palet + 1).padStart(2, '0')}`;
-    }
+    // Construir el ID usando la información lógica
+    const rackID = logico.rack;
+    const seccionID = logico.seccion;
+    const nivelID = String.fromCharCode(65 + nivel);
+    const paletID = String(palet + 1).padStart(2, '0');
     
-    // Obtener la configuración del rack
-    const numSecciones = rackObj.userData.numeroSecciones || rackObj.userData.secciones;
-    const dobleCara = rackObj.userData.dobleCara;
-    
-    // Ajustar el número de sección según el lado
-    let seccionID;
-    
-    if (dobleCara && lado === "B") {
-        // Para la cara trasera, comenzar desde el final de las secciones frontales
-        seccionID = (2 * numSecciones) - seccion;
-    } else {
-        // Para la cara frontal, numeración normal
-        seccionID = seccion + 1;
-    }
-    
-    // Asegurar que la sección está en rango (1-numSecciones*2 para doble cara)
-    const maxSeccion = dobleCara ? numSecciones * 2 : numSecciones;
-    seccionID = Math.max(1, Math.min(seccionID, maxSeccion));
-    
-    // Construir el ID completo
-    return `${rack}${String(seccionID).padStart(2, '0')}${String.fromCharCode(65 + nivel)}${String(palet + 1).padStart(2, '0')}`;
+    return `${rackID}${String(seccionID).padStart(2, '0')}${nivelID}${paletID}`;
 }
 
+// 4. FUNCIÓN MODIFICADA: inicializarRacks (REEMPLAZA LA EXISTENTE)
+function inicializarRacks() {
+    const distanciaEntreRacks = 3;
+    let posicionZActual = config.margenAlrededor;
+
+    // Obtener todos los racks únicos mencionados en initialData
+    const racksNecesarios = new Set();
+    initialData.forEach(item => {
+        if (item.id && item.id.match(/^[A-Z]\d{2}[A-Z]\d{2}$/)) {
+            const rackLogico = item.id.charAt(0);
+            const seccionLogica = parseInt(item.id.substring(1, 3));
+            
+            // Determinar qué rack físico necesitamos
+            const posicionFisica = MAPA_RECORRIDO_EXTENDIDO.calcularPosicionFisica(rackLogico, seccionLogica);
+            racksNecesarios.add(posicionFisica.rack);
+            
+            // También agregar el rack lógico si es diferente
+            if (rackLogico !== posicionFisica.rack) {
+                racksNecesarios.add(rackLogico);
+            }
+        }
+    });
+
+    // Si no hay racks en los datos, usar configuración mínima
+    if (racksNecesarios.size === 0) {
+        racksNecesarios.add('A');
+        racksNecesarios.add('B');
+    }
+
+    console.log(`🏗️ Creando racks físicos: ${Array.from(racksNecesarios).sort().join(', ')}`);
+
+    // Configuración física actualizada según el nuevo sistema
+    const configRacks = {};
+    Object.keys(MAPA_RECORRIDO_EXTENDIDO.racks).forEach(letra => {
+        const rackInfo = MAPA_RECORRIDO_EXTENDIDO.racks[letra];
+        configRacks[letra] = {
+            posInicio: { x: config.primerRackX, z: posicionZActual },
+            longitud: 35,
+            dobleCara: rackInfo.dobleCara,
+            numeroSecciones: rackInfo.seccionesReales
+        };
+        posicionZActual += 5 + distanciaEntreRacks;
+    });
+
+    // Crear solo los racks necesarios
+    Array.from(racksNecesarios).sort().forEach(letraRack => {
+        if (configRacks[letraRack]) {
+            const rackInfo = configRacks[letraRack];
+            crearRack(
+                rackInfo.posInicio,
+                rackInfo.longitud,
+                letraRack,
+                7, // niveles
+                rackInfo.dobleCara,
+                rackInfo.numeroSecciones
+            );
+            console.log(`✅ Rack ${letraRack} creado: ${rackInfo.numeroSecciones} secciones, ${rackInfo.dobleCara ? 'doble' : 'una'} cara`);
+        } else {
+            console.warn(`⚠️ No hay configuración para el rack ${letraRack}`);
+        }
+    });
+    
+    // Mostrar el esquema de recorrido
+    mostrarEsquemaRecorrido();
+}
 // Asegurarnos de tener una función para calcular el ancho de sección
 function calcularAnchoSeccion(paletsPorSeccion, anchoPalet, separacionPalets, margenSeccion) {
     // Total de espacio horizontal necesario para los palets en una sección
     const espacioPalets = (paletsPorSeccion * anchoPalet) + ((paletsPorSeccion - 1) * separacionPalets);
     // Ancho total incluyendo márgenes
     return espacioPalets + (margenSeccion * 2);
+}
+
+
+// 5. FUNCIÓN NUEVA: mostrarEsquemaRecorrido
+function mostrarEsquemaRecorrido() {
+    console.log('\n🧠 ESQUEMA DEL RECORRIDO EXTENDIDO DE CAJAS');
+    console.log('==========================================');
+    
+    const racksArray = Object.keys(MAPA_RECORRIDO_EXTENDIDO.racks);
+    
+    racksArray.forEach((rackFisico, index) => {
+        const rackConfig = MAPA_RECORRIDO_EXTENDIDO.racks[rackFisico];
+        console.log(`\n--- RACK ${rackFisico} (${rackConfig.dobleCara ? 'Doble cara' : 'Una cara'}) ---`);
+        
+        // Mostrar cara izquierda/frontal
+        console.log('  Cara Izquierda (A):');
+        for (let seccion = 1; seccion <= rackConfig.seccionesReales; seccion++) {
+            const logico = MAPA_RECORRIDO_EXTENDIDO.calcularRackLogico(rackFisico, seccion, 'A');
+            const idEjemplo = `${logico.rack}${String(logico.seccion).padStart(2, '0')}A01`;
+            console.log(`    Sección ${seccion}: ${idEjemplo}`);
+        }
+        
+        // Mostrar cara derecha si existe
+        if (rackConfig.dobleCara) {
+            console.log('  Cara Derecha (B):');
+            for (let seccion = 1; seccion <= rackConfig.seccionesReales; seccion++) {
+                const logico = MAPA_RECORRIDO_EXTENDIDO.calcularRackLogico(rackFisico, seccion, 'B');
+                const idEjemplo = `${logico.rack}${String(logico.seccion).padStart(2, '0')}A01`;
+                console.log(`    Sección ${seccion}: ${idEjemplo}`);
+            }
+        }
+    });
+    
+    console.log('\n📊 RESUMEN DE LA LÓGICA:');
+    console.log('• Rack A: solo cara frontal con sus propias secciones (A01-A17)');
+    console.log('• Rack B: cara izq. continúa A (A18-A34), cara der. inicia B (B01-B17)');
+    console.log('• Rack C: cara izq. continúa B (B18-B34), cara der. inicia C (C01-C17)');
+    console.log('• Y así sucesivamente...');
+}
+
+// 6. FUNCIÓN NUEVA: validarIDExtendido
+function validarIDExtendido(id) {
+    if (!id || !id.match(/^[A-Z]\d{2}[A-Z]\d{2}$/)) {
+        return { valido: false, razon: 'Formato de ID inválido' };
+    }
+    
+    const rackLogico = id.charAt(0);
+    const seccionLogica = parseInt(id.substring(1, 3));
+    
+    // Verificar que el rack lógico existe
+    if (!MAPA_RECORRIDO_EXTENDIDO.racks[rackLogico]) {
+        return { valido: false, razon: `Rack lógico ${rackLogico} no existe` };
+    }
+    
+    // Calcular posición física y verificar que sea válida
+    const posicionFisica = MAPA_RECORRIDO_EXTENDIDO.calcularPosicionFisica(rackLogico, seccionLogica);
+    const rackFisicoConfig = MAPA_RECORRIDO_EXTENDIDO.racks[posicionFisica.rack];
+    
+    if (!rackFisicoConfig) {
+        return { valido: false, razon: `Rack físico ${posicionFisica.rack} no existe` };
+    }
+    
+    // Verificar que la sección física está en rango
+    if (posicionFisica.seccion < 0 || posicionFisica.seccion >= rackFisicoConfig.seccionesReales) {
+        return { valido: false, razon: `Sección fuera de rango en rack ${posicionFisica.rack}` };
+    }
+    
+    // Verificar que el lado es válido para ese rack
+    if (posicionFisica.lado === 'B' && !rackFisicoConfig.dobleCara) {
+        return { valido: false, razon: `Rack ${posicionFisica.rack} no tiene cara trasera` };
+    }
+    
+    return { 
+        valido: true, 
+        posicionFisica: posicionFisica,
+        info: `ID ${id} → Rack físico ${posicionFisica.rack}, Sección ${posicionFisica.seccion + 1}, Lado ${posicionFisica.lado}`
+    };
+}
+
+// 7. FUNCIÓN NUEVA: convertirIDsExistentes
+function convertirIDsExistentes(arrayDatos) {
+    console.log('\n🔄 CONVIRTIENDO IDs AL SISTEMA EXTENDIDO');
+    console.log('=====================================');
+    
+    let convertidos = 0;
+    let errores = 0;
+    
+    arrayDatos.forEach((item, index) => {
+        if (item.id) {
+            const validacion = validarIDExtendido(item.id);
+            if (validacion.valido) {
+                console.log(`✅ ${item.id} - ${validacion.info}`);
+                convertidos++;
+            } else {
+                console.log(`❌ ${item.id} - ${validacion.razon}`);
+                errores++;
+            }
+        }
+    });
+    
+    console.log(`\n📈 Resultado: ${convertidos} IDs válidos, ${errores} errores`);
+    return { convertidos, errores };
+}
+
+// 8. FUNCIÓN NUEVA: generarEjemplosRecorrido
+function generarEjemplosRecorrido() {
+    console.log('\n📚 EJEMPLOS DE IDs SEGÚN EL RECORRIDO EXTENDIDO');
+    console.log('=============================================');
+    
+    // Ejemplos por rack
+    const ejemplos = [
+        // Rack A (solo cara frontal)
+        { descripcion: 'Rack A, Sección 1, Cara frontal', id: 'A01A01' },
+        { descripcion: 'Rack A, Sección 17, Cara frontal', id: 'A17A01' },
+        
+        // Rack B
+        { descripcion: 'Rack B, Sección 1, Cara izq. (continúa A)', id: 'A18A01' },
+        { descripcion: 'Rack B, Sección 17, Cara izq. (continúa A)', id: 'A34A01' },
+        { descripcion: 'Rack B, Sección 1, Cara der. (inicia B)', id: 'B01A01' },
+        { descripcion: 'Rack B, Sección 17, Cara der. (inicia B)', id: 'B17A01' },
+        
+        // Rack C
+        { descripcion: 'Rack C, Sección 1, Cara izq. (continúa B)', id: 'B18A01' },
+        { descripcion: 'Rack C, Sección 17, Cara izq. (continúa B)', id: 'B34A01' },
+        { descripcion: 'Rack C, Sección 1, Cara der. (inicia C)', id: 'C01A01' },
+        { descripcion: 'Rack C, Sección 17, Cara der. (inicia C)', id: 'C17A01' }
+    ];
+    
+    ejemplos.forEach(ejemplo => {
+        const validacion = validarIDExtendido(ejemplo.id);
+        const estado = validacion.valido ? '✅' : '❌';
+        console.log(`${estado} ${ejemplo.descripcion}: ${ejemplo.id}`);
+        if (validacion.valido) {
+            console.log(`    → ${validacion.info}`);
+        }
+    });
 }
 
 // Función mejorada para obtener la posición correcta de las cajas según rack y cara
@@ -1782,7 +2014,7 @@ function obtenerPosicionDesdeDatos(item) {
     );
     
     if (!rackObj) {
-        console.error(`No se encontró el rack ${rack}`);
+        console.error(`No se encontró el rack físico ${rack}`);
         return { x: 0, y: 0, z: 0 };
     }
 
@@ -1793,7 +2025,7 @@ function obtenerPosicionDesdeDatos(item) {
     
     // Verificar que la sección está dentro del rango válido
     if (columna < 0 || columna >= numSecciones) {
-        console.warn(`La sección ${columna+1} está fuera del rango para el rack ${rack} (1-${numSecciones}). Ajustando valor.`);
+        console.warn(`⚠️ La sección ${columna+1} está fuera del rango para el rack físico ${rack} (1-${numSecciones}). Ajustando valor.`);
     }
     const seccionValida = Math.min(Math.max(0, columna), numSecciones - 1);
     
@@ -1808,7 +2040,7 @@ function obtenerPosicionDesdeDatos(item) {
         rackData.paletsPorNivel['0-1'] : 
         rackData.paletsPorNivel['2+'];
     
-    // Configuración de palets (usar la guardada o los valores predeterminados)
+    // Configuración de palets
     const configPalets = rackData.configPalets || {
         ancho: 0.9,
         separacion: 0.3,
@@ -1820,7 +2052,7 @@ function obtenerPosicionDesdeDatos(item) {
     const inicioRack = posXRack - halfAncho;
     const inicioSeccion = inicioRack + (seccionValida * anchoSeccion);
     
-    // Determinar dimensiones de los palets en esta sección específica
+    // Calcular dimensiones de palets
     const espacioNecesarioOriginal = (2 * configPalets.margenSeccion) +
                                   (paletsPorSeccion * configPalets.ancho) +
                                   ((paletsPorSeccion - 1) * configPalets.separacion);
@@ -1828,22 +2060,16 @@ function obtenerPosicionDesdeDatos(item) {
     let anchoPalet, separacion, margenAjustado;
     
     if (espacioNecesarioOriginal <= anchoSeccion) {
-        // Hay suficiente espacio, mantener tamaños originales
         anchoPalet = configPalets.ancho;
         separacion = configPalets.separacion;
         
-        // Centrar palets en la sección
         const espacioSobrante = anchoSeccion - espacioNecesarioOriginal;
         margenAjustado = configPalets.margenSeccion + (espacioSobrante / 2);
     } else {
-        // No hay suficiente espacio, usar tamaños ajustados
         const separacionMinima = 0.1;
         const margenMinimo = 0.1;
-        
-        // Espacio disponible para los palets después de restar márgenes mínimos
         const espacioDisponible = anchoSeccion - (2 * margenMinimo);
         
-        // Calcular ancho de palet con separación mínima
         separacion = separacionMinima;
         anchoPalet = (espacioDisponible - ((paletsPorSeccion - 1) * separacionMinima)) / paletsPorSeccion;
         margenAjustado = margenMinimo;
@@ -1851,7 +2077,7 @@ function obtenerPosicionDesdeDatos(item) {
     
     // Verificar que el palet está dentro del rango válido
     if (palet < 0 || palet >= paletsPorSeccion) {
-        console.warn(`El palet ${palet+1} está fuera del rango para nivel ${nivel+1} (1-${paletsPorSeccion}). Ajustando valor.`);
+        console.warn(`⚠️ El palet ${palet+1} está fuera del rango para nivel ${nivel+1} (1-${paletsPorSeccion}). Ajustando valor.`);
     }
     const paletValido = Math.min(Math.max(0, palet), paletsPorSeccion - 1);
     
@@ -1860,8 +2086,7 @@ function obtenerPosicionDesdeDatos(item) {
                 (paletValido * (anchoPalet + separacion)) + (anchoPalet / 2);
     
     // Calcular posición Z según el lado
-    // Verificar si el rack es de doble cara y ajustar el lado en consecuencia
-    const ladoEfectivo = dobleCara ? lado : "A"; // En racks de una cara, siempre usar lado A
+    const ladoEfectivo = dobleCara ? lado : "A";
     const zOffset = ladoEfectivo === "A" ? -halfProf + 0.2 : halfProf - 0.2;
     const posZ = rackObj.position.z + zOffset;
     
@@ -1869,22 +2094,50 @@ function obtenerPosicionDesdeDatos(item) {
     const espacioEntreNiveles = rackData.espacioEntreNiveles || (config.alturaCaja + 0.2);
     const posY = nivel * espacioEntreNiveles + config.alturaCaja/2;
     
-    // Para depuración
+    // Debug extendido
     if (config.debug && typeof item.id !== 'undefined') {
-        // Generar el ID correcto según la nueva lógica para verificar
         const idCalculado = generarIDDesdePosicion(rack, seccionValida, nivel, paletValido, ladoEfectivo);
-        console.log(`ID Original: ${item.id}, ID Calculado: ${idCalculado}`);
-        console.log(`Rack: ${rack} (${numSecciones} secciones), Sección: ${seccionValida+1}, Lado: ${ladoEfectivo}`);
-        console.log(`Posición: (${posX.toFixed(2)}, ${posY.toFixed(2)}, ${posZ.toFixed(2)})`);
+        console.log(`🔍 DEBUG EXTENDIDO:`);
+        console.log(`   ID Original: ${item.id}`);
+        console.log(`   ID Calculado: ${idCalculado}`);
+        console.log(`   Rack Físico: ${rack} (${numSecciones} secciones)`);
+        console.log(`   Posición: Sección ${seccionValida+1}, Lado ${ladoEfectivo}`);
+        console.log(`   Coordenadas: (${posX.toFixed(2)}, ${posY.toFixed(2)}, ${posZ.toFixed(2)})`);
     }
     
-    return { 
-        x: posX, 
-        y: posY, 
-        z: posZ 
-    };
+    return { x: posX, y: posY, z: posZ };
 }
 
+function debugSistemaExtendido() {
+    console.log('\n🔧 DEBUG DEL SISTEMA EXTENDIDO');
+    console.log('=============================');
+    
+    // Mostrar configuración
+    console.log('1. Configuración de racks:');
+    Object.entries(MAPA_RECORRIDO_EXTENDIDO.racks).forEach(([rack, config]) => {
+        console.log(`   ${rack}: ${config.seccionesReales} secciones, ${config.dobleCara ? 'doble' : 'una'} cara`);
+    });
+    
+    // Generar ejemplos de recorrido
+    generarEjemplosRecorrido();
+    
+    // Mostrar esquema completo
+    mostrarEsquemaRecorrido();
+    
+    return true;
+}
+
+// 11. INICIALIZACIÓN AUTOMÁTICA
+console.log('🚀 Sistema de Recorrido Extendido cargado y listo');
+console.log('💡 Usa debugSistemaExtendido() para ver ejemplos y esquemas');
+
+// Hacer funciones disponibles globalmente
+if (typeof window !== 'undefined') {
+    window.debugSistemaExtendido = debugSistemaExtendido;
+    window.validarIDExtendido = validarIDExtendido;
+    window.convertirIDsExistentes = convertirIDsExistentes;
+    window.generarEjemplosRecorrido = generarEjemplosRecorrido;
+}
 
 // Función para crear etiquetas para cada caja
 function crearEtiquetaCaja(caja) {
@@ -1978,51 +2231,31 @@ const COLORES = {
 
 // Función modificada para crear cajas que guarda correctamente los IDs
 function crearCajasDesdeDatos(dataArray) {
-     const cajasPorMaterial = {};
+    // Usar un geometry y material compartidos para cajas del mismo tipo
+    const sharedGeometry = ResourcePool.getBoxGeometry();
+    
     dataArray.forEach((item) => {
         const { rack, columna, nivel, palet, lado } = obtenerParametrosPosicion(item);
         const { x, y, z } = obtenerPosicionDesdeDatos(item);
 
-        const geometry = new THREE.BoxGeometry(
-            config.anchoCaja, 
-            config.alturaCaja, 
-            config.profundidadCaja
-        );
-
-           // Determinar color basado en estado y código de área
-       // LÓGICA CORREGIDA PARA ASIGNACIÓN DE COLORES:
+        // Determinar color basado en estado y código de área
         let color;
-        
-        // 1. Primero verificar el código de área especial
         if (item.cod_area === "PU01P001") {
             color = COLORES.COD_AREA_ESPECIAL;
-        } 
-        // 2. Si no, verificar el estado
-        else if (item.estado === "sin disponibilidad") {
+        } else if (item.estado === "sin disponibilidad") {
             color = COLORES.SIN_DISPONIBILIDAD;
-        }
-        else if (item.estado === "disponible") {
+        } else if (item.estado === "disponible") {
             color = COLORES.DISPONIBLE;
-        }
-        // 3. Finalmente, usar color específico o default
-        else {
+        } else {
             color = item.color || COLORES.DEFAULT;
         }
         
-        const material = new THREE.MeshStandardMaterial({
-            color: color,
-            metalness: 0.3,
-            roughness: 0.5
-        });
-
-        const caja = new THREE.Mesh(geometry, material);
+        const material = ResourcePool.getMaterial(color);
+        const caja = new THREE.Mesh(sharedGeometry, material);
         caja.position.set(x, y, z);
         
-        // Generamos ID correcto si no viene uno explícito
         const id = item.id || generarIDDesdePosicion(rack, columna, nivel, palet, lado);
         
-        // Guardamos todos los datos relevantes
-        // Guardamos todos los datos relevantes
         caja.userData = {
             id: id,
             rack: rack,
@@ -2032,20 +2265,15 @@ function crearCajasDesdeDatos(dataArray) {
             lado: lado,
             contenido: item.contenido || "",
             articulos: item.articulos || [],
-            estado: item.estado || "disponible", // Valor por defecto
-            cod_area: item.cod_area || ""        // Valor por defecto
+            estado: item.estado || "disponible",
+            cod_area: item.cod_area || ""
         };
 
-
-        
-        // Añadir etiqueta a la caja
         crearEtiquetaCaja(caja);
-
         scene.add(caja);
         boxes.push(caja);
     });
 }
-
 // Función para actualizar el estado de una caja
 function actualizarEstadoCaja(idCaja, nuevoEstado, nuevoCodArea = null) {
     const caja = boxes.find(b => b.userData.id === idCaja);
@@ -2189,66 +2417,137 @@ function verificarPosicionesID(rackLetra) {
   }
 
 
+  async function manejarCambioCliente() {
+  const selectCliente = document.getElementById('cliente-filter');
+  const selectArticulo = document.getElementById('articulo-filter');
+  const inputArticulo = document.getElementById('articulo-filter-search');
 
-// Función para aplicar los filtros a las cajas visibles
+  // Limpiar artículos al cambiar cliente
+  selectArticulo.innerHTML = '<option value="">Todos los artículos</option>';
+  if (inputArticulo) inputArticulo.value = '';
+
+  if (!selectCliente.value) {
+    return;
+  }
+
+  // Extraer coddiv del valor seleccionado (formato: "0000 - DEMO")
+  const coddiv = selectCliente.value.split(' - ')[0];
+  console.log(`[DEBUG] Cargando artículos para cliente ${coddiv}...`);
+
+  try {
+    // Cargar artículos desde API
+    const articulos = await cargarArticulosDeCliente(coddiv);
+    
+    // Verificar si hay artículos
+    if (articulos.length === 0) {
+      console.warn(`[DEBUG] No se encontraron artículos para ${coddiv}`);
+      mostrarError(`El cliente ${selectCliente.value} no tiene artículos registrados`);
+      return;
+    }
+
+    // Llenar selector de artículos
+    articulos.forEach(articulo => {
+      const option = document.createElement('option');
+      option.value = articulo.codart; // Usamos codart como valor
+      option.textContent = `${articulo.codart} - ${articulo.desart}`; // Mostramos codart - desart
+      option.dataset.coddiv = articulo.coddiv; // Guardamos coddiv en dataset
+      selectArticulo.appendChild(option);
+    });
+
+    console.log(`[DEBUG] Artículos cargados para ${coddiv}:`, articulos);
+  } catch (error) {
+    console.error(`[ERROR] Error al cargar artículos:`, error);
+    mostrarError('Error al cargar artículos. Intente nuevamente.');
+  }
+}
+
+// 1. Modificar la función de filtrado para usar las relaciones
 function filtrarCajas(filtros) {
-  const { rack, cliente, articulo, lote } = filtros;
-  
+  const { rack, cliente, articulo } = filtros;
+
+  // Extraer solo el código del cliente (ej: "0000" de "0000 - DEMO")
+  const codCliente = cliente ? cliente.split(' - ')[0] : null;
+
+  // Extraer solo el código del artículo (ej: "0000CR01-0000" de "0000CR01-0000 - DESCRIPCION")
+  const codArticulo = articulo ? articulo.split(' - ')[0] : null;
+
   boxes.forEach(caja => {
     const userData = caja.userData;
     let visible = true;
-    
+
     // Filtro por rack
     if (rack && rack !== 'all') {
       visible = visible && (userData.rack === rack);
     }
-    
-    if (!visible) {
-      caja.visible = false;
-      return;
+
+    // Filtro por cliente (RELACIÓN CLAVE)
+    if (codCliente) {
+      // Verificar si la caja pertenece al cliente seleccionado
+      visible = visible && (
+        // Caso 1: El cliente está directamente en los datos de la caja
+        userData.cliente === codCliente ||
+        // Caso 2: El artículo de la caja pertenece al cliente
+        (userData.articulos && userData.articulos.some(a =>
+          articulosData[codCliente]?.some(art => art.codart === a.codigo)
+        ))
+      );
     }
-    
-    // Filtro por cliente
-    if (cliente) {
-      const clienteMatch = userData.cliente === cliente || 
-        (userData.articulos && userData.articulos.some(a => a.cliente === cliente));
-      visible = visible && clienteMatch;
-    }
-    
+
     // Filtro por artículo
-    if (articulo) {
-      const articuloMatch = userData.articulos && 
-                           userData.articulos.some(a => a.codigo === articulo);
-      visible = visible && articuloMatch;
+    if (codArticulo) {
+      visible = visible && (
+        userData.articulos && userData.articulos.some(a => a.codigo === codArticulo)
+      );
     }
-    
-    // Filtro por lote
-    if (lote) {
-      const loteMatch = userData.articulos && 
-                      userData.articulos.some(a => a.lote === lote);
-      visible = visible && loteMatch;
-    }
-    
+
     caja.visible = visible;
   });
-  
-  // Actualizar visibilidad de los racks según cajas visibles
-  scene.children.forEach(obj => {
-    if (obj.userData?.tipoObjeto === 'rack') {
-      // Si se ha seleccionado un rack específico, solo mostrar ese
-      if (rack !== 'all') {
-        obj.visible = obj.userData.letra === rack;
-      } else {
-        // Si es "todos", mostrar rack si tiene al menos una caja visible
-        obj.visible = boxes.some(caja => 
-          caja.visible && caja.userData.rack === obj.userData.letra
-        );
-      }
-    }
-  });
-  
+
+  actualizarVisibilidadRacks();
   needsRender = true;
 }
+
+// 2. Función para cargar y relacionar todos los datos necesarios
+async function cargarYRelacionarDatos() {
+  // Cargar clientes
+  await cargarClientesDesdeAPI();
+
+  // Cargar artículos para cada cliente
+  for (const cliente of clientesData) {
+    await cargarArticulosDeCliente(cliente.coddiv);
+  }
+
+  // Procesar cajas para agregar relaciones
+  procesarRelacionesCajas();
+}
+
+// 3. Función para procesar relaciones en las cajas
+function procesarRelacionesCajas() {
+  boxes.forEach(caja => {
+    const userData = caja.userData;
+
+    // Si la caja ya tiene cliente definido, no hacer nada
+    if (userData.cliente) return;
+
+    // Buscar el artículo de la caja en los datos cargados
+    if (userData.articulos && userData.articulos.length > 0) {
+      userData.articulos.forEach(articulo => {
+        // Encontrar a qué cliente pertenece este artículo
+        for (const coddiv in articulosData) {
+          const encontrado = articulosData[coddiv].find(a => a.codart === articulo.codigo);
+          if (encontrado) {
+            // Asignar el cliente al artículo
+            articulo.cliente = coddiv;
+            // Si la caja no tiene cliente, asignar el primero encontrado
+            if (!userData.cliente) userData.cliente = coddiv;
+          }
+        }
+      });
+    }
+  });
+}
+
+
 
 // Función para filtrar por cliente
 function filtrarPorCliente(cliente) {
@@ -2264,12 +2563,7 @@ function filtrarPorArticulo(articulo) {
     filtrarCajas(filtros);
 }
 
-// Función para filtrar por lote
-function filtrarPorLote(lote) {
-    const filtros = obtenerFiltrosActuales();
-    filtros.lote = lote || null;
-    filtrarCajas(filtros);
-}
+
 
 // Función para obtener los filtros actuales del UI
 function obtenerFiltrosActuales() {
@@ -2277,26 +2571,42 @@ function obtenerFiltrosActuales() {
     rack: document.getElementById('rack-filter').value,
     cliente: document.getElementById('cliente-filter').value || null,
     articulo: document.getElementById('articulo-filter').value || null,
-    lote: document.getElementById('lote-filter').value || null
   };
 }
 
-// Función principal para extraer datos de filtros en cascada
-function extraerDatosFiltros(filtroRack = 'all', filtroCliente = null, filtroArticulo = null) {
+// Función para obtener el nombre del cliente por su código
+function obtenerNombreCliente(coddiv) {
+  if (!clientesData || !Array.isArray(clientesData)) return coddiv;
+  const cliente = clientesData.find(c => c.coddiv === coddiv);
+  return cliente ? cliente.desdiv : coddiv;
+}
+
+// Función para obtener el nombre del artículo por su código
+function obtenerNombreArticulo(coddiv, codart) {
+  if (!articulosData[coddiv] || !Array.isArray(articulosData[coddiv])) return codart;
+  const articulo = articulosData[coddiv].find(a => a.codart === codart);
+  return articulo ? articulo.coddesart : codart;
+}
+// Modificación de la función para extraer datos de filtros
+async function extraerDatosFiltros(filtroRack = 'all', filtroCliente = null, filtroArticulo = null) {
+  // Cargar clientes si no están cargados
+  if (clientesData.length === 0) {
+    await cargarClientesDesdeAPI();
+  }
+
   const clientes = new Set();
   const articulos = new Set();
-  const lotes = new Set();
 
   initialData.forEach(caja => {
     // Solo procesar cajas del rack seleccionado (o todas si es 'all')
     if (filtroRack === 'all' || caja.rack === filtroRack) {
-      
       // Si no hay filtro de cliente o coincide con el cliente de la caja
       const clienteCoincide = !filtroCliente || caja.cliente === filtroCliente;
       
       // Si coincide el cliente principal de la caja, lo añadimos siempre
       if (caja.cliente) {
-        clientes.add(caja.cliente);
+        const nombreCliente = obtenerNombreCliente(caja.cliente);
+        clientes.add(`${caja.cliente} - ${nombreCliente}`);
       }
       
       // Procesar artículos
@@ -2304,7 +2614,8 @@ function extraerDatosFiltros(filtroRack = 'all', filtroCliente = null, filtroArt
         caja.articulos.forEach(articulo => {
           // Añadir cliente del artículo si existe (para el nivel de clientes)
           if (articulo.cliente) {
-            clientes.add(articulo.cliente);
+            const nombreCliente = obtenerNombreCliente(articulo.cliente);
+            clientes.add(`${articulo.cliente} - ${nombreCliente}`);
           }
           
           // Para los artículos, comprobamos si coincide con el filtro de cliente (si existe)
@@ -2314,17 +2625,8 @@ function extraerDatosFiltros(filtroRack = 'all', filtroCliente = null, filtroArt
           
           // Solo añadir artículos si coincide con el filtro de cliente
           if (articuloClienteCoincide && articulo.codigo) {
-            articulos.add(`${articulo.codigo} - ${articulo.nombre || articulo.codigo}`);
-          }
-          
-          // Para los lotes, comprobamos si coincide con el filtro de cliente y artículo
-          const articuloCodigo = articulo.codigo;
-          const loteClienteCoincide = articuloClienteCoincide;
-          const loteArticuloCoincide = !filtroArticulo || articuloCodigo === filtroArticulo;
-          
-          // Solo añadir lotes si coincide con cliente y artículo
-          if (loteClienteCoincide && loteArticuloCoincide && articulo.lote) {
-            lotes.add(articulo.lote);
+            const nombreArticulo = obtenerNombreArticulo(articulo.cliente || caja.cliente, articulo.codigo);
+            articulos.add(`${articulo.codigo} - ${nombreArticulo}`);
           }
         });
       }
@@ -2334,34 +2636,105 @@ function extraerDatosFiltros(filtroRack = 'all', filtroCliente = null, filtroArt
   return {
     clientes: Array.from(clientes).sort(),
     articulos: Array.from(articulos).sort(),
-    lotes: Array.from(lotes).sort()
   };
 }
 
 
-// Actualizar dinámicamente los selectores de filtros en cascada
-function actualizarSelectores() {
-  const filtros = obtenerFiltrosActuales();
-  
-  // Extraer datos considerando la cascada de filtros
-  const { clientes, articulos, lotes } = extraerDatosFiltros(
-    filtros.rack, 
-    filtros.cliente, 
-    filtros.articulo
-  );
-
-  // Actualizar cada selector manteniendo su valor si sigue siendo válido
-  actualizarSelector('cliente-filter', clientes, 'Todos los clientes', filtros.cliente);
-  actualizarSelector('articulo-filter', articulos, 'Todos los artículos', filtros.articulo, true);
-  actualizarSelector('lote-filter', lotes, 'Todos los lotes', filtros.lote);
+// Función modificada para cargar selectores desde API
+async function cargarSelectoresDesdeAPI() {
+  try {
+    // Cargar clientes desde API
+    const clientes = await cargarClientesDesdeAPI();
+    
+    // Preparar opciones de clientes
+    const opcionesClientes = clientes.map(cliente => ({
+      coddiv: cliente.coddiv,
+      desdiv: cliente.desdiv
+    }));
+    
+    // Llenar selector de clientes
+    actualizarSelector('cliente-filter', opcionesClientes, 'Todos los clientes');
+    
+    // Inicializar selector de artículos vacío
+    actualizarSelector('articulo-filter', [], 'Todos los artículos', null, true);
+    
+    return true;
+  } catch (error) {
+    console.error('Error cargando selectores desde API:', error);
+    return false;
+  }
 }
 
+async function cargarSelectoresIniciales() {
+  try {
+    // Cargar clientes desde API
+    const clientes = await cargarClientesDesdeAPI();
+    
+    // Llenar selector de clientes
+    const selectCliente = document.getElementById('cliente-filter');
+    selectCliente.innerHTML = '<option value="">Todos los clientes</option>';
+    
+    clientes.forEach(cliente => {
+      const option = document.createElement('option');
+      option.value = `${cliente.coddiv} - ${cliente.desdiv}`; // Formato: "0000 - DEMO"
+      option.textContent = `${cliente.coddiv} - ${cliente.desdiv}`;
+      option.dataset.coddiv = cliente.coddiv;
+      selectCliente.appendChild(option);
+    });
+
+    // Inicializar selector de artículos vacío
+    const selectArticulo = document.getElementById('articulo-filter');
+    selectArticulo.innerHTML = '<option value="">Todos los artículos</option>';
+    
+    console.log('[DEBUG] Selectores iniciales cargados');
+  } catch (error) {
+    console.error('[ERROR] Error al cargar selectores iniciales:', error);
+    mostrarError('Error al cargar datos iniciales. Recargue la página.');
+  }
+}
+
+
+async function actualizarSelectores() {
+  const filtros = obtenerFiltrosActuales();
+  const selectCliente = document.getElementById('cliente-filter');
+  const selectArticulo = document.getElementById('articulo-filter');
+  
+  // Mantener selección actual de cliente
+  const clienteSeleccionado = selectCliente.value;
+  
+  // Si hay un cliente seleccionado, cargar sus artículos
+  if (clienteSeleccionado) {
+    const coddiv = clienteSeleccionado.split(' - ')[0];
+    await cargarArticulosDeCliente(coddiv);
+    
+    // Reconstruir opciones de artículos
+    selectArticulo.innerHTML = '<option value="">Todos los artículos</option>';
+    
+    if (articulosData[coddiv]) {
+      articulosData[coddiv].forEach(articulo => {
+        const option = document.createElement('option');
+        option.value = articulo.codart;
+        option.textContent = `${articulo.codart} - ${articulo.desart}`;
+        selectArticulo.appendChild(option);
+      });
+    }
+    
+    // Mantener selección de artículo si sigue siendo válida
+    if (filtros.articulo) {
+      const articuloExiste = Array.from(selectArticulo.options).some(
+        opt => opt.value === filtros.articulo
+      );
+      if (articuloExiste) {
+        selectArticulo.value = filtros.articulo;
+      }
+    }
+  }
+}
 function convertirSelectoresABuscables() {
   // Lista de selectores a convertir
   const selectores = [
     { id: 'cliente-filter', placeholder: 'Buscar cliente...' },
-    { id: 'articulo-filter', placeholder: 'Buscar artículo...' },
-    { id: 'lote-filter', placeholder: 'Buscar lote...' }
+    { id: 'articulo-filter', placeholder: 'Buscar artículo...' }
   ];
   
   selectores.forEach(({ id, placeholder }) => {
@@ -2598,23 +2971,40 @@ function convertirSelectoresABuscables() {
 
 
 // Modificar la función de actualización de selectores para mantener 
-// Función modificada para actualizar selectores sin duplicados
-function actualizarSelector(idSelector, opciones, textoDefault, valorActual, esArticulo = false) {
+// Función modificada para actualizar selectores con verificación
+function actualizarSelector(idSelector, opciones = [], textoDefault, valorActual, esArticulo = false) {
   const selector = document.getElementById(idSelector);
+  if (!selector) {
+    console.error(`Selector con ID ${idSelector} no encontrado`);
+    return;
+  }
+
   const valorAnterior = selector.value;
-  const inputSearch = document.getElementById(`${idSelector}-search`);
   
-  // Actualizamos el selector original
+  // Limpiar selector
   selector.innerHTML = `<option value="">${textoDefault}</option>`;
 
+  // Verificar que opciones es un array antes de usar forEach
+  if (!Array.isArray(opciones)) {
+    console.error(`Las opciones para ${idSelector} no son un array:`, opciones);
+    return;
+  }
+
+  // Agregar opciones
   opciones.forEach(opcion => {
     let valor, texto;
 
-    if (esArticulo && opcion.includes(' - ')) {
+    if (typeof opcion === 'object') {
+      // Manejar objetos (para clientes desde API)
+      valor = opcion.coddiv;
+      texto = `${opcion.coddiv} - ${opcion.desdiv}`;
+    } else if (esArticulo && opcion.includes(' - ')) {
+      // Manejar artículos con formato "codigo - descripción"
       const [codigo, nombre] = opcion.split(' - ');
-      valor = codigo;
+      valor = codigo.trim();
       texto = opcion;
     } else {
+      // Manejar valores simples
       valor = opcion;
       texto = opcion;
     }
@@ -2624,45 +3014,35 @@ function actualizarSelector(idSelector, opciones, textoDefault, valorActual, esA
 
   // Mantener el valor anterior si es válido
   if (valorAnterior && opciones.some(opcion => {
-    if (esArticulo && opcion.includes(' - ')) {
+    if (esArticulo && typeof opcion === 'string' && opcion.includes(' - ')) {
       return opcion.startsWith(valorAnterior + ' -');
     }
-    return opcion === valorAnterior;
+    return opcion === valorAnterior || (typeof opcion === 'object' && opcion.coddiv === valorAnterior);
   })) {
     selector.value = valorAnterior;
   } else if (valorActual && opciones.some(opcion => {
-    if (esArticulo && opcion.includes(' - ')) {
+    if (esArticulo && typeof opcion === 'string' && opcion.includes(' - ')) {
       return opcion.startsWith(valorActual + ' -');
     }
-    return opcion === valorActual;
+    return opcion === valorActual || (typeof opcion === 'object' && opcion.coddiv === valorActual);
   })) {
     selector.value = valorActual;
   } else {
     selector.value = '';
   }
   
-  // SOLO actualizar el input si existe y sin crear duplicados
+  // Actualizar el input de búsqueda si existe
+  const inputSearch = document.getElementById(`${idSelector}-search`);
   if (inputSearch) {
     if (selector.value) {
-      const selectedIndex = selector.selectedIndex;
-      inputSearch.value = selector.options[selectedIndex].textContent;
+      const selectedOption = selector.options[selector.selectedIndex];
+      inputSearch.value = selectedOption ? selectedOption.text : '';
     } else {
       inputSearch.value = '';
     }
   }
 }
 
-
-// Función para cargar los selectores iniciales
-function cargarSelectoresDesdeInitialData() {
-  // Extraer todos los datos sin filtros
-  const { clientes, articulos, lotes } = extraerDatosFiltros();
-  
-  // Llenar selectores con datos iniciales
-  actualizarSelector('cliente-filter', clientes, 'Todos los clientes');
-  actualizarSelector('articulo-filter', articulos, 'Todos los artículos', null, true);
-  actualizarSelector('lote-filter', lotes, 'Todos los lotes');
-}
 
 
 
@@ -2675,98 +3055,85 @@ function aplicarFiltros() {
 }
 
 
-// Función para setup sin duplicados
-function setupRackFilterUI() {
+// Función modificada para setup
+async function setupRackFilterUI() {
   const selectRack = document.getElementById('rack-filter');
   const focusBtn = document.getElementById('focus-rack');
   const selectCliente = document.getElementById('cliente-filter');
   const selectArticulo = document.getElementById('articulo-filter');
-  const selectLote = document.getElementById('lote-filter');
   const resetBtn = document.getElementById('reset-filters');
 
-  // Cargar opciones iniciales
-  cargarSelectoresDesdeInitialData();
+  // Cargar opciones iniciales desde API
+  await cargarSelectoresDesdeAPI();
   
-  // IMPORTANTE: Solo convertir una vez después de cargar los datos
-  // Verificar que no se han convertido ya
-  const clienteSearch = document.getElementById('cliente-filter-search');
-  if (!clienteSearch) {
+  // Convertir selectores a buscables (solo una vez)
+  if (!document.getElementById('cliente-filter-search')) {
     convertirSelectoresABuscables();
   }
 
-  // Events para filtros (sin cambios)
-  selectRack.addEventListener('change', () => {
+  // Evento para cambio de rack
+  selectRack.addEventListener('change', async () => {
     selectCliente.value = '';
     selectArticulo.value = '';
-    selectLote.value = '';
     
-    // Limpiar también inputs de búsqueda si existen
-    const inputs = ['cliente-filter-search', 'articulo-filter-search', 'lote-filter-search'];
-    inputs.forEach(inputId => {
-      const input = document.getElementById(inputId);
-      if (input) input.value = '';
-    });
+    // Limpiar inputs de búsqueda
+    const clienteInput = document.getElementById('cliente-filter-search');
+    const articuloInput = document.getElementById('articulo-filter-search');
+    if (clienteInput) clienteInput.value = '';
+    if (articuloInput) articuloInput.value = '';
     
-    actualizarSelectores();
+    await actualizarSelectores();
     aplicarFiltros();
+    
     if (selectRack.value !== 'all') {
       enfocarRack(selectRack.value);
     }
   });
   
-  selectCliente.addEventListener('change', () => {
+  // Evento para cambio de cliente
+  selectCliente.addEventListener('change', async () => {
     selectArticulo.value = '';
-    selectLote.value = '';
-    
-    // Limpiar inputs correspondientes
     const articuloInput = document.getElementById('articulo-filter-search');
-    const loteInput = document.getElementById('lote-filter-search');
     if (articuloInput) articuloInput.value = '';
-    if (loteInput) loteInput.value = '';
     
-    actualizarSelectores();
+    // Cargar artículos si hay un cliente seleccionado
+    if (selectCliente.value) {
+      const coddiv = selectCliente.value;
+      await cargarArticulosDeCliente(coddiv);
+    }
+    
+    await actualizarSelectores();
     aplicarFiltros();
   });
   
+  // Evento para cambio de artículo
   selectArticulo.addEventListener('change', () => {
-    selectLote.value = '';
-    
-    // Limpiar input de lote
-    const loteInput = document.getElementById('lote-filter-search');
-    if (loteInput) loteInput.value = '';
-    
-    actualizarSelectores();
     aplicarFiltros();
   });
   
-  selectLote.addEventListener('change', () => {
-    aplicarFiltros();
-  });
-  
+  // Botón de enfoque
   focusBtn.addEventListener('click', () => enfocarRack(selectRack.value));
   
-  resetBtn.addEventListener('click', () => {
+  // Botón de reset
+  resetBtn.addEventListener('click', async () => {
     selectRack.value = 'all';
     selectCliente.value = '';
     selectArticulo.value = '';
-    selectLote.value = '';
     
-    // Limpiar SOLO los campos de búsqueda que existen
-    const inputs = ['cliente-filter-search', 'articulo-filter-search', 'lote-filter-search'];
+    // Limpiar campos de búsqueda
+    const inputs = ['cliente-filter-search', 'articulo-filter-search'];
     inputs.forEach(inputId => {
       const input = document.getElementById(inputId);
       if (input) input.value = '';
     });
     
-    actualizarSelectores();
+    await actualizarSelectores();
     aplicarFiltros();
   });
 }
-
 function cargarOpcionesFiltros() {
     const clientes = new Set();
     const articulos = new Set();
-    const lotes = new Set();
 
     // Extraer datos únicos de initialData
     initialData.forEach(item => {
@@ -2776,7 +3143,6 @@ function cargarOpcionesFiltros() {
             item.articulos.forEach(articulo => {
                 if (articulo.cliente) clientes.add(articulo.cliente);
                 if (articulo.codigo) articulos.add(articulo.codigo);
-                if (articulo.lote) lotes.add(articulo.lote);
             });
         }
     });
@@ -2784,7 +3150,6 @@ function cargarOpcionesFiltros() {
     // Llenar selectores
     llenarSelector('cliente-filter', Array.from(clientes).sort());
     llenarSelector('articulo-filter', Array.from(articulos).sort());
-    llenarSelector('lote-filter', Array.from(lotes).sort());
 }
 
 function llenarSelector(idSelector, opciones) {
@@ -2808,7 +3173,6 @@ function actualizarEstadisticasFiltradas(filtros) {
         let texto = '';
         if (filtros.cliente) texto += `Cliente: ${filtros.cliente} `;
         if (filtros.articulo) texto += `Artículo: ${filtros.articulo} `;
-        if (filtros.lote) texto += `Lote: ${filtros.lote} `;
         
         resumenFiltrado.textContent = texto || 'Mostrando todas las cajas';
         resumenFiltrado.textContent += ` (${cajasVisibles.length} cajas)`;
@@ -3270,6 +3634,8 @@ function updateUIMode() {
 function init() {
     cargarDatosDesdeAPI();
     actualizarConfiguracion();
+     cargarYRelacionarDatos();
+    cargarSelectoresDesdeAPI();
     inicializarRacks(); // Primero crea los racks
     createGrid();
     crearCajasDesdeDatos(initialData);
@@ -3300,60 +3666,77 @@ function init() {
 }
 
 
-// Cambia la función animate para usar un renderizado condicional
-let needsRender = true;
 
-function animate() {
+// Variables para control de FPS
+let lastRenderTime = 0;
+const targetFPS = 60;
+let needsRender = false;
+
+function animate(currentTime) {
     requestAnimationFrame(animate);
-
-    // Mover la cámara en modo FPS
+    
+    // Control de framerate
+    const now = performance.now();
+    const delta = now - lastRenderTime;
+    
+    // Saltar frame si no es necesario renderizar
+    if (delta < (1000 / targetFPS)) {
+        return;
+    }
+    
+    lastRenderTime = now - (delta % (1000 / targetFPS));
+    
+    // Lógica de movimiento FPS
     if (isFirstPerson && fpsControls.isLocked) {
         const camera = fpsControls.getObject();
         const direction = new THREE.Vector3();
         
-         
-      // 1. Obtener la dirección hacia adelante (W)
-      camera.getWorldDirection(direction);
-      direction.y = 0; // Ignorar componente vertical
-      direction.normalize();
-      
+        camera.getWorldDirection(direction);
+        direction.y = 0;
+        direction.normalize();
         
-        // Calcular dirección derecha (para movimiento lateral)
         const right = new THREE.Vector3();
         right.crossVectors(new THREE.Vector3(0, 1, 0), direction).normalize();
         
-                // Movimiento vertical (Space/Shift)
+        // Movimiento con teclado
         if (moveState.up) camera.position.y += verticalSpeed;
         if (moveState.down) camera.position.y -= verticalSpeed;
-        // Aplicar movimiento según teclas presionadas
-        if (moveState.forward) {
-            camera.position.addScaledVector(direction, moveSpeed);
-        }
-        if (moveState.backward) {
-            camera.position.addScaledVector(direction, -moveSpeed);
-        }
-        if (moveState.left) {     // A: Derecha (invertido)
-    camera.position.addScaledVector(right, moveSpeed); // Cambiado de -moveSpeed a +moveSpeed
-        }
-        if (moveState.right) {    // D: Izquierda (invertido)
-            camera.position.addScaledVector(right, -moveSpeed); // Cambiado de +moveSpeed a -moveSpeed
-        }
+        if (moveState.forward) camera.position.addScaledVector(direction, moveSpeed);
+        if (moveState.backward) camera.position.addScaledVector(direction, -moveSpeed);
+        if (moveState.left) camera.position.addScaledVector(right, moveSpeed);
+        if (moveState.right) camera.position.addScaledVector(right, -moveSpeed);
         
         needsRender = true;
-    } else if (!isFirstPerson && frameCount % 3 === 0) {
-        // Actualizar controles de órbita cada 3 frames
+    } 
+    // Lógica de controles orbitales
+    else if (!isFirstPerson) {
         orbitControls.update();
         needsRender = true;
     }
-
+    
+    // Renderizado condicional
     if (needsRender) {
         renderer.render(scene, camera);
         needsRender = false;
     }
-
-    frameCount++;
+    
+    // Actualizar estadísticas de FPS (opcional, para debug)
+    updateFPSStats(currentTime);
 }
 
+// Función opcional para monitorear FPS
+let lastFpsUpdate = 0;
+const fpsElement = document.getElementById('fps-counter'); // Añade un elemento en tu HTML
+
+function updateFPSStats(currentTime) {
+    frameCount++;
+    if (currentTime > lastFpsUpdate + 1000) {
+        const fps = Math.round((frameCount * 1000) / (currentTime - lastFpsUpdate));
+        if (fpsElement) fpsElement.textContent = `FPS: ${fps}`;
+        frameCount = 0;
+        lastFpsUpdate = currentTime;
+    }
+}
 // Event listeners para ambos controles
 orbitControls.addEventListener('change', () => {
     if (!isFirstPerson) needsRender = true;
