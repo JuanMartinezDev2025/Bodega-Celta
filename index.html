@@ -1526,6 +1526,9 @@ function crearRack(posicionInicial, longitud, letraRack, niveles = 8, dobleCara 
     scene.add(rack);
     return rack;
 }
+
+
+
 function crearEtiquetaRack(rack, letraRack, anchuraRack, alturaRack, profundidad) {
     // Crear canvas para generar la imagen del texto
     const canvas = document.createElement('canvas');
@@ -1851,7 +1854,7 @@ function inicializarRacks() {
                 rackInfo.posInicio,
                 rackInfo.longitud,
                 letraRack,
-                7, // niveles
+                8, // niveles
                 rackInfo.dobleCara,
                 rackInfo.numeroSecciones
             );
@@ -2144,86 +2147,157 @@ if (typeof window !== 'undefined') {
     window.generarEjemplosRecorrido = generarEjemplosRecorrido;
 }
 
-// Función para crear etiquetas para cada caja
-function crearEtiquetaCaja(caja) {
+// Función unificada para crear etiquetas de cajas/palets
+function crearEtiquetaCaja(caja, esPaletVacio = false) {
     const userData = caja.userData;
     const id = userData.id;
     
-    if (!id) return; // No crear etiqueta si no hay ID
-    
-    // Crear canvas para la etiqueta
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
-    
-    // Configurar tamaño del canvas
-    canvas.width = 256;
-    canvas.height = 128;
-    
-    // Dibujar fondo blanco con borde negro
-    context.fillStyle = '#FFFFFF';
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    
-    context.strokeStyle = '#000000';
-    context.lineWidth = 8;
-    context.strokeRect(4, 4, canvas.width - 8, canvas.height - 8);
-    
-    // Configurar estilo de texto
-    context.fillStyle = '#000000';
-    context.font = 'bold 48px Arial';
-    context.textAlign = 'center';
-    context.textBaseline = 'middle';
-    
-    // Dibujar el ID en el centro
-    context.fillText(id, canvas.width / 2, canvas.height / 2);
-    
-    // Crear textura desde el canvas
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.minFilter = THREE.LinearFilter;
-    texture.magFilter = THREE.LinearFilter;
-    
-    // Crear material con la textura
-    const etiquetaMaterial = new THREE.MeshBasicMaterial({
-        map: texture,
-        transparent: true,
-        side: THREE.DoubleSide
-    });
+    if (!id) return;
 
-
-    
-    
-    // Dimensiones de la etiqueta (ajustar según necesidad)
-    const etiquetaAncho = config.anchoCaja * 1.0;
-    const etiquetaAlto = config.anchoCaja * 0.8;
-    
-    // Crear geometría de la etiqueta
-    const etiquetaGeometry = new THREE.PlaneGeometry(etiquetaAncho, etiquetaAlto);
-    
-    // Crear las cuatro etiquetas (una para cada lado de la caja)
-    const crearEtiquetaLado = (rotY, posX, posZ) => {
-        const etiqueta = new THREE.Mesh(etiquetaGeometry, etiquetaMaterial);
-        etiqueta.rotation.y = rotY;
-        etiqueta.position.set(posX, 0, posZ);
-        return etiqueta;
-    };
-    
-    // Crear grupo para contener todas las etiquetas
-    const etiquetasGrupo = new THREE.Group();
-    
-    // Offset para que la etiqueta esté ligeramente separada de la caja
-    const offset = 0.01;
-    const halfAncho = config.anchoCaja / 2 + offset;
-    const halfProf = config.profundidadCaja / 2 + offset;
-    
-    // Crear etiquetas en los cuatro lados
-    etiquetasGrupo.add(crearEtiquetaLado(0, 0, halfProf)); // Frente
-    etiquetasGrupo.add(crearEtiquetaLado(Math.PI, 0, -halfProf)); // Atrás
-    etiquetasGrupo.add(crearEtiquetaLado(Math.PI / 2, halfAncho, 0)); // Derecha
-    etiquetasGrupo.add(crearEtiquetaLado(-Math.PI / 2, -halfAncho, 0)); // Izquierda
-    
-    // Añadir el grupo de etiquetas a la caja
-    caja.add(etiquetasGrupo);
-    
-    return etiquetasGrupo;
+    if (esPaletVacio) {
+        // ----------------------------
+        // VERSIÓN OPTIMIZADA PARA PALETS VACÍOS
+        // ----------------------------
+        
+        // Canvas más pequeño para optimizar
+        const canvas = document.createElement('canvas');
+        canvas.width = 192;  // Reducido para mejor performance
+        canvas.height = 96;
+        const context = canvas.getContext('2d');
+        
+        // Fondo semitransparente
+        context.fillStyle = 'rgba(248, 248, 248, 0.9)';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Borde discontinuo naranja
+        context.strokeStyle = '#FF9800';
+        context.lineWidth = 4;
+        context.setLineDash([6, 3]);
+        context.strokeRect(3, 3, canvas.width - 6, canvas.height - 6);
+        context.setLineDash([]);
+        
+        // Texto del ID
+        context.fillStyle = '#333333';
+        context.font = 'bold 20px Arial';
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.fillText(id, canvas.width / 2, canvas.height * 0.35);
+        
+        // Texto "DISPONIBLE"
+        context.font = 'bold 16px Arial';
+        context.fillStyle = '#4CAF50';
+        context.fillText('DISPONIBLE', canvas.width / 2, canvas.height * 0.7);
+        
+        // Crear textura
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.minFilter = THREE.LinearFilter;
+        
+        // Material para la etiqueta
+        const material = new THREE.MeshBasicMaterial({
+            map: texture,
+            transparent: true,
+            side: THREE.DoubleSide
+        });
+        
+        // Geometría más pequeña para palets vacíos
+        const geometria = new THREE.PlaneGeometry(
+            config.anchoCaja * 0.7, 
+            config.anchoCaja * 0.5
+        );
+        
+        // Crear etiqueta solo en la parte frontal
+        const etiqueta = new THREE.Mesh(geometria, material);
+        etiqueta.position.set(0, 0, config.profundidadCaja / 2 + 0.01);
+        
+        // Añadir plataforma visual delgada para palet vacío
+        const plataformaGeo = new THREE.BoxGeometry(
+            config.anchoCaja * 0.9,
+            config.alturaCaja * 0.1,
+            config.profundidadCaja * 0.9
+        );
+        const plataformaMat = new THREE.MeshBasicMaterial({
+            color: 0xE0E0E0,
+            transparent: true,
+            opacity: 0.4
+        });
+        const plataforma = new THREE.Mesh(plataformaGeo, plataformaMat);
+        plataforma.position.y = -config.alturaCaja * 0.3;
+        
+        // Agrupar etiqueta y plataforma
+        const grupo = new THREE.Group();
+        grupo.add(etiqueta);
+        grupo.add(plataforma);
+        
+        caja.add(grupo);
+        return grupo;
+        
+    } else {
+        // ----------------------------
+        // VERSIÓN PARA CAJAS CON CONTENIDO
+        // ----------------------------
+        
+        // Canvas para etiqueta normal
+        const canvas = document.createElement('canvas');
+        canvas.width = 256;
+        canvas.height = 128;
+        const context = canvas.getContext('2d');
+        
+        // Fondo blanco con borde
+        context.fillStyle = '#FFFFFF';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.strokeStyle = '#000000';
+        context.lineWidth = 8;
+        context.strokeRect(4, 4, canvas.width - 8, canvas.height - 8);
+        
+        // Texto del ID
+        context.fillStyle = '#000000';
+        context.font = 'bold 36px Arial';
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.fillText(id, canvas.width / 2, canvas.height / 2);
+        
+        // Crear textura
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.minFilter = THREE.LinearFilter;
+        
+        // Material para la etiqueta
+        const material = new THREE.MeshBasicMaterial({
+            map: texture,
+            transparent: true,
+            side: THREE.DoubleSide
+        });
+        
+        // Geometría de la etiqueta
+        const geometria = new THREE.PlaneGeometry(
+            config.anchoCaja * 0.9,
+            config.anchoCaja * 0.7
+        );
+        
+        // Crear grupo para las 4 etiquetas
+        const grupo = new THREE.Group();
+        
+        // Posiciones relativas para las etiquetas
+        const offset = 0.01;
+        const halfAncho = config.anchoCaja / 2 + offset;
+        const halfProf = config.profundidadCaja / 2 + offset;
+        
+        // Función para crear una etiqueta en una posición
+        const crearEtiqueta = (rotY, posX, posZ) => {
+            const etiqueta = new THREE.Mesh(geometria, material);
+            etiqueta.rotation.y = rotY;
+            etiqueta.position.set(posX, 0, posZ);
+            return etiqueta;
+        };
+        
+        // Añadir etiquetas a los 4 lados
+        grupo.add(crearEtiqueta(0, 0, halfProf)); // Frente
+        grupo.add(crearEtiqueta(Math.PI, 0, -halfProf)); // Atrás
+        grupo.add(crearEtiqueta(Math.PI/2, halfAncho, 0)); // Derecha
+        grupo.add(crearEtiqueta(-Math.PI/2, -halfAncho, 0)); // Izquierda
+        
+        caja.add(grupo);
+        return grupo;
+    }
 }
 
 // Configuración de colores según estados y códigos
@@ -2234,23 +2308,22 @@ const COLORES = {
   DEFAULT: 0x2196F3       // Azul por defecto
 };
 
-// Función modificada para crear cajas que guarda correctamente los IDs
+// Función modificada para crear cajas y etiquetas para palets vacíos
 function crearCajasDesdeDatos(dataArray) {
-    // Usar un geometry y material compartidos para cajas del mismo tipo
     const sharedGeometry = ResourcePool.getBoxGeometry();
+    const cajasExistentes = new Set();
     
+    // 1. Primero crear todas las cajas con contenido
     dataArray.forEach((item) => {
         const { rack, columna, nivel, palet, lado } = obtenerParametrosPosicion(item);
         const { x, y, z } = obtenerPosicionDesdeDatos(item);
-
-        // Determinar color basado en estado y código de área
+        
+        // Determinar color basado en estado
         let color;
         if (item.cod_area === "PU01P001") {
             color = COLORES.COD_AREA_ESPECIAL;
         } else if (item.estado === "sin disponibilidad") {
             color = COLORES.SIN_DISPONIBILIDAD;
-        } else if (item.estado === "disponible") {
-            color = COLORES.DISPONIBLE;
         } else {
             color = item.color || COLORES.DEFAULT;
         }
@@ -2260,6 +2333,7 @@ function crearCajasDesdeDatos(dataArray) {
         caja.position.set(x, y, z);
         
         const id = item.id || generarIDDesdePosicion(rack, columna, nivel, palet, lado);
+        cajasExistentes.add(id);
         
         caja.userData = {
             id: id,
@@ -2271,14 +2345,137 @@ function crearCajasDesdeDatos(dataArray) {
             contenido: item.contenido || "",
             articulos: item.articulos || [],
             estado: item.estado || "disponible",
-            cod_area: item.cod_area || ""
+            cod_area: item.cod_area || "",
+            esPaletVacio: false
         };
 
-        crearEtiquetaCaja(caja);
+        crearEtiquetaCaja(caja, false);
         scene.add(caja);
         boxes.push(caja);
     });
+
+    // 2. Crear palets vacíos para posiciones sin caja
+    scene.children.forEach(rackObj => {
+        if (rackObj.userData?.tipoObjeto === 'rack') {
+            const rackData = rackObj.userData;
+            const rackLetra = rackData.letra;
+            const numSecciones = rackData.numeroSecciones || rackData.secciones;
+            const numNiveles = rackData.niveles || 8;
+            const dobleCara = rackData.dobleCara;
+            const paletsPorNivel = rackData.paletsPorNivel || { '0-1': 2, '2+': 3 };
+
+            for (let seccion = 0; seccion < numSecciones; seccion++) {
+                for (let nivel = 0; nivel < numNiveles; nivel++) {
+                    const paletsPorSeccion = nivel < 2 ? paletsPorNivel['0-1'] : paletsPorNivel['2+'];
+                    
+                    for (let palet = 0; palet < paletsPorSeccion; palet++) {
+                        const caras = dobleCara ? ['A', 'B'] : ['A'];
+                        
+                        caras.forEach(lado => {
+                            const id = generarIDDesdePosicion(rackLetra, seccion, nivel, palet, lado);
+                            
+                            if (!cajasExistentes.has(id)) {
+                                const { x, y, z } = obtenerPosicionDesdeDatos({
+                                    rack: rackLetra,
+                                    seccion: seccion,
+                                    nivel: nivel,
+                                    palet: palet,
+                                    lado: lado
+                                });
+                                
+                                // Crear contenedor para palet vacío
+                                const paletVacio = new THREE.Group();
+                                paletVacio.position.set(x, y, z);
+                                
+                                paletVacio.userData = {
+                                    id: id,
+                                    rack: rackLetra,
+                                    nivel: nivel,
+                                    seccion: seccion,
+                                    palet: palet,
+                                    lado: lado,
+                                    estado: "disponible",
+                                    esPaletVacio: true
+                                };
+                                
+                                // Crear etiqueta optimizada
+                                crearEtiquetaCaja(paletVacio, true);
+                                scene.add(paletVacio);
+                                boxes.push(paletVacio);
+                            }
+                        });
+                    }
+                }
+            }
+        }
+    });
 }
+// Nueva función para crear etiquetas para palets vacíos
+function crearEtiquetasParaPaletsVacios() {
+    // Recorrer todos los racks en la escena
+    scene.children.forEach(rackObj => {
+        if (rackObj.userData?.tipoObjeto === 'rack') {
+            const rackData = rackObj.userData;
+            const rackLetra = rackData.letra;
+            const numSecciones = rackData.numeroSecciones || rackData.secciones;
+            const numNiveles = rackData.niveles || 8;
+            const dobleCara = rackData.dobleCara;
+            const paletsPorNivel = rackData.paletsPorNivel || { '0-1': 2, '2+': 3 };
+
+            // Recorrer todas las posiciones posibles
+            for (let seccion = 0; seccion < numSecciones; seccion++) {
+                for (let nivel = 0; nivel < numNiveles; nivel++) {
+                    const paletsPorSeccion = nivel < 2 ? paletsPorNivel['0-1'] : paletsPorNivel['2+'];
+                    
+                    for (let palet = 0; palet < paletsPorSeccion; palet++) {
+                        // Verificar ambas caras si es doble cara
+                        const caras = dobleCara ? ['A', 'B'] : ['A'];
+                        
+                        caras.forEach(lado => {
+                            const id = generarIDDesdePosicion(rackLetra, seccion, nivel, palet, lado);
+                            
+                            // Verificar si ya existe una caja con este ID
+                            const cajaExistente = boxes.find(b => b.userData.id === id);
+                            
+                            if (!cajaExistente) {
+                                // Crear solo la etiqueta para este palet vacío
+                                const { x, y, z } = obtenerPosicionDesdeDatos({
+                                    rack: rackLetra,
+                                    seccion: seccion,
+                                    nivel: nivel,
+                                    palet: palet,
+                                    lado: lado
+                                });
+                                
+                                // Crear un objeto invisible para contener la etiqueta
+                                const paletVacio = new THREE.Group();
+                                paletVacio.position.set(x, y, z);
+                                
+                                paletVacio.userData = {
+                                    id: id,
+                                    rack: rackLetra,
+                                    nivel: nivel,
+                                    seccion: seccion,
+                                    palet: palet,
+                                    lado: lado,
+                                    contenido: "",
+                                    articulos: [],
+                                    estado: "vacio",
+                                    cod_area: ""
+                                };
+                                
+                                crearEtiquetaCaja(paletVacio);
+                                scene.add(paletVacio);
+                                boxes.push(paletVacio);
+                            }
+                        });
+                    }
+                }
+            }
+        }
+    });
+}
+
 // Función para actualizar el estado de una caja
 function actualizarEstadoCaja(idCaja, nuevoEstado, nuevoCodArea = null) {
     const caja = boxes.find(b => b.userData.id === idCaja);
@@ -2355,7 +2552,65 @@ function verificarPosicionesID(rackLetra) {
 }
 
 
-  // Función para filtrar racks por letra
+
+function calcularPosicionPalet(rackObj, seccion, nivel, palet, lado) {
+    // Esta función es similar a obtenerPosicionDesdeDatos pero para posiciones vacías
+    const rackData = rackObj.userData;
+    const anchoSeccion = rackData.anchoSeccion;
+    const anchuraRack = rackData.anchura || rackData.longitud;
+    const halfAncho = anchuraRack / 2;
+    const halfProf = rackData.halfProf || (rackData.profundidad / 2);
+    
+    // Palets por sección según nivel
+    const paletsPorSeccion = nivel < 2 ? 
+        rackData.paletsPorNivel['0-1'] : 
+        rackData.paletsPorNivel['2+'];
+    
+    // Configuración de palets
+    const configPalets = rackData.configPalets || {
+        ancho: 0.9,
+        separacion: 0.3,
+        margenSeccion: 0.3
+    };
+    
+    // Calcular posición X
+    const posXRack = rackObj.position.x;
+    const inicioRack = posXRack - halfAncho;
+    const inicioSeccion = inicioRack + (seccion * anchoSeccion);
+    
+    // Ajustar dimensiones de palets para que quepan en la sección
+    let anchoPalet, separacion, margenAjustado;
+    const espacioNecesario = (2 * configPalets.margenSeccion) +
+                           (paletsPorSeccion * configPalets.ancho) +
+                           ((paletsPorSeccion - 1) * configPalets.separacion);
+    
+    if (espacioNecesario <= anchoSeccion) {
+        anchoPalet = configPalets.ancho;
+        separacion = configPalets.separacion;
+        margenAjustado = configPalets.margenSeccion + ((anchoSeccion - espacioNecesario) / 2);
+    } else {
+        // Ajustar para que quepa
+        separacion = 0.1;
+        anchoPalet = (anchoSeccion - (2 * 0.1) - ((paletsPorSeccion - 1) * separacion)) / paletsPorSeccion;
+        margenAjustado = 0.1;
+    }
+    
+    // Posición X del palet
+    const posX = inicioSeccion + margenAjustado + 
+                (palet * (anchoPalet + separacion)) + (anchoPalet / 2);
+    
+    // Posición Z según el lado
+    const zOffset = lado === "A" ? -halfProf + 0.1 : halfProf - 0.1;
+    const posZ = rackObj.position.z + zOffset;
+    
+    // Posición Y (altura según nivel)
+    const espacioEntreNiveles = rackData.espacioEntreNiveles || (config.alturaCaja + 0.2);
+    const posY = nivel * espacioEntreNiveles + (config.alturaCaja / 2);
+    
+    return { x: posX, y: posY, z: posZ };
+}
+  
+// Función para filtrar racks por letra
   function filtrarRacks(letraRack) {
     scene.children.forEach(obj => {
       if (obj.userData?.tipoObjeto === 'rack') {
@@ -3637,6 +3892,7 @@ function updateUIMode() {
 }
 // Optimización para el renderizado - mantener esto como estaba
 function init() {
+
     cargarDatosDesdeAPI();
     actualizarConfiguracion();
      cargarYRelacionarDatos();
