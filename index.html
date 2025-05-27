@@ -1676,7 +1676,7 @@ const MAPA_RECORRIDO_EXTENDIDO = {
     racks: {
         'A': { seccionesReales: 17, dobleCara: false },  // Solo cara frontal
         'B': { seccionesReales: 17, dobleCara: true },   // Doble cara
-        'C': { seccionesReales: 17, dobleCara: true },
+        'C': { seccionesReales: 17, dobleCara: true },   // <-- Para tu ejemplo C03
         'D': { seccionesReales: 14, dobleCara: true },
         'E': { seccionesReales: 13, dobleCara: true },
         'F': { seccionesReales: 12, dobleCara: true },
@@ -1686,7 +1686,86 @@ const MAPA_RECORRIDO_EXTENDIDO = {
         'J': { seccionesReales: 8, dobleCara: false }    // Solo cara frontal
     },
     
-    // Calcular qué rack lógico corresponde a una posición física
+    // NUEVA FUNCIÓN: Generar IDs secuenciales por sección (NUMERACIÓN CONSECUTIVA A1+A2)
+    generarIDsPorSeccion(rack, seccion) {
+        const ids = [];
+        const seccionStr = String(seccion).padStart(2, '0');
+        
+        // Niveles A1 y A2 (altura 0 y 1) = 6 palets consecutivos usando solo nivel "A"
+        let contadorPalet = 1;
+        
+        // Nivel A: palets 01, 02, 03, 04, 05, 06 (A1 y A2 juntos)
+        for (let palet = 1; palet <= 6; palet++) {
+            const paletStr = String(palet).padStart(2, '0');
+            const id = `${rack}${seccionStr}A${paletStr}`;
+            ids.push(id);
+        }
+        
+        // Niveles B, C, D, E, F, G, H (altura 2-7) = 2 palets cada uno
+        const nivelesRestantes = ['B', 'C', 'D', 'E', 'F', 'G', 'H'];
+        nivelesRestantes.forEach(nivelLetra => {
+            for (let palet = 1; palet <= 2; palet++) {
+                const paletStr = String(palet).padStart(2, '0');
+                const id = `${rack}${seccionStr}${nivelLetra}${paletStr}`;
+                ids.push(id);
+            }
+        });
+        
+        return ids;
+    },
+    
+    // NUEVA FUNCIÓN: Obtener información de posición desde ID (LÓGICA CONSECUTIVA)
+    parsearID(id) {
+        if (!id || !id.match(/^[A-Z]\d{2}[A-Z]\d{2}$/)) {
+            console.warn(`ID inválido: ${id}`);
+            return null;
+        }
+        
+        const rack = id.charAt(0);
+        const seccion = parseInt(id.substring(1, 3));
+        const nivelLetra = id.charAt(3);
+        const palet = parseInt(id.substring(4, 6));
+        
+        let alturaFisica, paletFisico;
+        
+        // Lógica para nivel A (palets 01-06 distribuidos en alturas 0 y 1)
+        if (nivelLetra === 'A') {
+            if (palet >= 1 && palet <= 3) {
+                // A01, A02, A03 → Altura 0 (A1), palets 0, 1, 2
+                alturaFisica = 0;
+                paletFisico = palet - 1;
+            } else if (palet >= 4 && palet <= 6) {
+                // A04, A05, A06 → Altura 1 (A2), palets 0, 1, 2
+                alturaFisica = 1;
+                paletFisico = palet - 4;
+            } else {
+                console.warn(`Palet ${palet} fuera de rango para nivel A (01-06)`);
+                return null;
+            }
+        } 
+        // Lógica para niveles B-H (alturas 2-7, 2 palets cada uno)
+        else {
+            const nivelIndex = nivelLetra.charCodeAt(0) - 65; // B=1, C=2, etc.
+            alturaFisica = nivelIndex + 1; // B→2, C→3, D→4, etc.
+            paletFisico = palet - 1; // 01→0, 02→1
+            
+            if (palet < 1 || palet > 2) {
+                console.warn(`Palet ${palet} fuera de rango para nivel ${nivelLetra} (01-02)`);
+                return null;
+            }
+        }
+        
+        return {
+            rack: rack,
+            seccion: seccion,
+            nivelLetra: nivelLetra,
+            nivel: alturaFisica,
+            palet: palet,
+            paletFisico: paletFisico
+        };
+    },
+    
+    // FUNCIÓN ACTUALIZADA: Calcular qué rack lógico corresponde a una posición física
     calcularRackLogico(rackFisico, seccionFisica, lado) {
         const rackIndex = Object.keys(this.racks).indexOf(rackFisico);
         
@@ -1709,71 +1788,81 @@ const MAPA_RECORRIDO_EXTENDIDO = {
         };
     },
     
-   // Calcular posición física desde rack lógico
-calcularPosicionFisica(rackLogico, seccionLogica) {
-    const racksArray = Object.keys(this.racks);
-    const rackLogIndex = racksArray.indexOf(rackLogico);
-    
-    if (rackLogIndex === -1) {
+    // FUNCIÓN ACTUALIZADA: Calcular posición física desde rack lógico
+    calcularPosicionFisica(rackLogico, seccionLogica) {
+        const racksArray = Object.keys(this.racks);
+        const rackLogIndex = racksArray.indexOf(rackLogico);
+        
+        if (rackLogIndex === -1) {
+            return { rack: rackLogico, seccion: seccionLogica - 1, lado: 'A' };
+        }
+        
+        const seccionesRackLogico = this.racks[rackLogico].seccionesReales;
+        
+        // Si la sección está dentro del rango del rack lógico
+        if (seccionLogica <= seccionesRackLogico) {
+            return {
+                rack: rackLogico,
+                seccion: seccionLogica - 1,
+                lado: rackLogico === 'A' ? 'A' : 'B'  // Rack A solo tiene cara A
+            };
+        }
+        
+        // Si la sección excede el rack, buscar en el siguiente rack físico
+        const rackFisicoSiguiente = racksArray[rackLogIndex + 1];
+        if (rackFisicoSiguiente) {
+            const seccionEnSiguiente = seccionLogica - seccionesRackLogico;
+            
+            // CAMBIO: Invertir el orden para que empiece desde atrás
+            const seccionesRackSiguiente = this.racks[rackFisicoSiguiente].seccionesReales;
+            const seccionInvertida = seccionesRackSiguiente - seccionEnSiguiente;
+            
+            return {
+                rack: rackFisicoSiguiente,
+                seccion: seccionInvertida,
+                lado: 'A'
+            };
+        }
+        
+        // Fallback
         return { rack: rackLogico, seccion: seccionLogica - 1, lado: 'A' };
     }
-    
-    const seccionesRackLogico = this.racks[rackLogico].seccionesReales;
-    
-    // Si la sección está dentro del rango del rack lógico
-    if (seccionLogica <= seccionesRackLogico) {
-        return {
-            rack: rackLogico,
-            seccion: seccionLogica - 1,
-            lado: rackLogico === 'A' ? 'A' : 'B'  // Rack A solo tiene cara A
-        };
-    }
-    
-    // Si la sección excede el rack, buscar en el siguiente rack físico
-    const rackFisicoSiguiente = racksArray[rackLogIndex + 1];
-    if (rackFisicoSiguiente) {
-        const seccionEnSiguiente = seccionLogica - seccionesRackLogico;
-        
-        // CAMBIO: Invertir el orden para que empiece desde atrás
-        const seccionesRackSiguiente = this.racks[rackFisicoSiguiente].seccionesReales;
-        const seccionInvertida = seccionesRackSiguiente - seccionEnSiguiente;
-        
-        return {
-            rack: rackFisicoSiguiente,
-            seccion: seccionInvertida,
-            lado: 'A'
-        };
-    }
-    
-    // Fallback
-    return { rack: rackLogico, seccion: seccionLogica - 1, lado: 'A' };
-}
 };
-
 // Modificación completa para corregir el posicionamiento en los racks
 // Esta solución asegura que secciones empiecen desde la izquierda (01) y respeta el tamaño de cada rack
 
 // Función modificada para obtener parámetros de posición considerando caras extendidas
 function obtenerParametrosPosicion(item) {
-    // Si el item tiene un ID estructurado (ej: "C25F02")
+    // Si el item tiene un ID estructurado (ej: "C03A01")
     if (item.id && item.id.match(/^[A-Z]\d{2}[A-Z]\d{2}$/)) {
-        const rackLogico = item.id.charAt(0);
-        const seccionLogica = parseInt(item.id.substring(1, 3));
-        const nivelLetra = item.id.charAt(3);
-        const nivel = nivelLetra.charCodeAt(0) - 65; // A=0, B=1, etc.
-        const palet = parseInt(item.id.substring(4, 6)) - 1; // Convertir "01" → 0
+        const infoID = MAPA_RECORRIDO_EXTENDIDO.parsearID(item.id);
+        
+        if (!infoID) {
+            console.error(`No se pudo parsear el ID: ${item.id}`);
+            return {
+                rack: 'A',
+                columna: 0,
+                nivel: 0,
+                palet: 0,
+                lado: 'A'
+            };
+        }
         
         // Calcular posición física usando el nuevo sistema
-        const posicionFisica = MAPA_RECORRIDO_EXTENDIDO.calcularPosicionFisica(rackLogico, seccionLogica);
+        const posicionFisica = MAPA_RECORRIDO_EXTENDIDO.calcularPosicionFisica(
+            infoID.rack, 
+            infoID.seccion
+        );
         
         return {
             rack: posicionFisica.rack,
             columna: posicionFisica.seccion,
-            nivel: nivel,
-            palet: palet,
+            nivel: infoID.nivel, // Ya calculado correctamente en parsearID
+            palet: infoID.paletFisico, // Usar el palet físico calculado
             lado: posicionFisica.lado
         };
     }
+    
     // Si el item tiene propiedades separadas (para compatibilidad)
     else {
         return {
@@ -1787,17 +1876,137 @@ function obtenerParametrosPosicion(item) {
 }
 
 
+function generarTodosLosIDsDeRack(rackLetra) {
+    const rackInfo = MAPA_RECORRIDO_EXTENDIDO.racks[rackLetra];
+    if (!rackInfo) {
+        console.error(`Rack ${rackLetra} no encontrado en configuración`);
+        return [];
+    }
+    
+    const todosLosIDs = [];
+    const seccionesReales = rackInfo.seccionesReales;
+    
+    // Para cada sección del rack
+    for (let seccion = 1; seccion <= seccionesReales; seccion++) {
+        // Generar todos los IDs para esta sección
+        const idsSeccion = MAPA_RECORRIDO_EXTENDIDO.generarIDsPorSeccion(rackLetra, seccion);
+        todosLosIDs.push(...idsSeccion);
+    }
+    
+    return todosLosIDs;
+}
 
-// Modificación de la función de generación de IDs para asegurar coherencia
+// 5. NUEVA FUNCIÓN: Validar ID según la lógica consecutiva
+function validarEstructuraID(id) {
+    const info = MAPA_RECORRIDO_EXTENDIDO.parsearID(id);
+    if (!info) return false;
+    
+    const rackInfo = MAPA_RECORRIDO_EXTENDIDO.racks[info.rack];
+    if (!rackInfo) return false;
+    
+    // Validar que la sección esté en el rango válido
+    if (info.seccion < 1 || info.seccion > rackInfo.seccionesReales) {
+        console.warn(`Sección ${info.seccion} fuera de rango para rack ${info.rack} (1-${rackInfo.seccionesReales})`);
+        return false;
+    }
+    
+    // Validar según la lógica específica del nivel
+    if (info.nivelLetra === 'A') {
+        // Nivel A: palets 01-06
+        if (info.palet < 1 || info.palet > 6) {
+            console.warn(`Palet ${info.palet} fuera de rango para nivel A (01-06)`);
+            return false;
+        }
+    } else {
+        // Niveles B-H: palets 01-02
+        if (info.palet < 1 || info.palet > 2) {
+            console.warn(`Palet ${info.palet} fuera de rango para nivel ${info.nivelLetra} (01-02)`);
+            return false;
+        }
+        
+        // Validar que el nivel esté en el rango B-H
+        const nivelIndex = info.nivelLetra.charCodeAt(0) - 65;
+        if (nivelIndex < 1 || nivelIndex > 7) {
+            console.warn(`Nivel ${info.nivelLetra} fuera de rango (B-H)`);
+            return false;
+        }
+    }
+    
+    return true;
+}
+
+// 6. FUNCIÓN DE EJEMPLO: Generar IDs con numeración consecutiva
+function ejemploGeneracionIDs() {
+    console.log("=== EJEMPLO DE GENERACIÓN DE IDs (NUMERACIÓN CONSECUTIVA) ===");
+    
+    // Para rack D, sección 01 como en tu ejemplo actualizado
+    const rackD = 'D';
+    const seccion01 = 1;
+    
+    console.log(`\n🏗️ Generando IDs para Rack ${rackD}, Sección ${seccion01.toString().padStart(2, '0')}:`);
+    
+    // Generar todos los IDs para esta sección
+    const todosLosIDs = MAPA_RECORRIDO_EXTENDIDO.generarIDsPorSeccion(rackD, seccion01);
+    
+    // Mostrar por grupos lógicos
+    console.log(`\n📦 Nivel A (A1+A2 - Alturas 0 y 1):`);
+    console.log(`   A1 (Altura 0): ${todosLosIDs.slice(0, 3).join(', ')}`);
+    console.log(`   A2 (Altura 1): ${todosLosIDs.slice(3, 6).join(', ')}`);
+    
+    console.log(`\n📦 Otros Niveles (2 palets cada uno):`);
+    const nivelesRestantes = ['B', 'C', 'D', 'E', 'F', 'G', 'H'];
+    let indice = 6;
+    nivelesRestantes.forEach(nivel => {
+        const idsNivel = todosLosIDs.slice(indice, indice + 2);
+        console.log(`   Nivel ${nivel}: ${idsNivel.join(', ')}`);
+        indice += 2;
+    });
+    
+    // Validar algunos IDs específicos
+    console.log("\n🔍 Validación de IDs:");
+    const idsParaValidar = ['D01A01', 'D01A04', 'D01B01', 'D01C02', 'D01A07'];
+    idsParaValidar.forEach(id => {
+        const esValido = validarEstructuraID(id);
+        const info = MAPA_RECORRIDO_EXTENDIDO.parsearID(id);
+        if (info) {
+            console.log(`${id}: ${esValido ? '✅ Válido' : '❌ Inválido'} - Altura física: ${info.nivel}, Palet físico: ${info.paletFisico}`);
+        } else {
+            console.log(`${id}: ❌ Inválido - No se pudo parsear`);
+        }
+    });
+    
+    // Ejemplo adicional con Rack C, Sección 03
+    console.log(`\n🏗️ Ejemplo adicional - Rack C, Sección 03:`);
+    const idsC03 = MAPA_RECORRIDO_EXTENDIDO.generarIDsPorSeccion('C', 3);
+    console.log(`   A1 (Altura 0): ${idsC03.slice(0, 3).join(', ')}`);
+    console.log(`   A2 (Altura 1): ${idsC03.slice(3, 6).join(', ')}`);
+    console.log(`   Nivel B: ${idsC03.slice(6, 8).join(', ')}`);
+    console.log(`   Nivel C: ${idsC03.slice(8, 10).join(', ')}`);
+}
+// 2. FUNCIÓN ACTUALIZADA: Generar ID desde posición física (LÓGICA CONSECUTIVA)
 function generarIDDesdePosicion(rack, seccion, nivel, palet, lado = "A") {
     // Calcular el rack lógico y sección lógica
     const logico = MAPA_RECORRIDO_EXTENDIDO.calcularRackLogico(rack, seccion + 1, lado);
     
-    // Construir el ID usando la información lógica
     const rackID = logico.rack;
     const seccionID = logico.seccion;
-    const nivelID = String.fromCharCode(65 + nivel);
-    const paletID = String(palet + 1).padStart(2, '0');
+    
+    let nivelID, paletID;
+    
+    // Lógica para los primeros dos niveles físicos (0 y 1) → Nivel A con numeración consecutiva
+    if (nivel === 0) {
+        // Altura 0 → A01, A02, A03
+        nivelID = 'A';
+        paletID = String(palet + 1).padStart(2, '0');
+    } else if (nivel === 1) {
+        // Altura 1 → A04, A05, A06
+        nivelID = 'A';
+        paletID = String(palet + 4).padStart(2, '0');
+    } else {
+        // Alturas 2+ → B01, B02, C01, C02, etc.
+        nivelID = String.fromCharCode(65 + nivel); // 2→C, 3→D, etc.
+        paletID = String(palet + 1).padStart(2, '0');
+    }
     
     return `${rackID}${String(seccionID).padStart(2, '0')}${nivelID}${paletID}`;
 }
@@ -2313,10 +2522,22 @@ function crearCajasDesdeDatos(dataArray) {
     const sharedGeometry = ResourcePool.getBoxGeometry();
     const cajasExistentes = new Set();
     
+    console.log("🔄 Iniciando creación de cajas con sistema de IDs actualizado...");
+    
     // 1. Primero crear todas las cajas con contenido
-    dataArray.forEach((item) => {
+    dataArray.forEach((item, index) => {
         const { rack, columna, nivel, palet, lado } = obtenerParametrosPosicion(item);
         const { x, y, z } = obtenerPosicionDesdeDatos(item);
+        
+        // Generar ID si no existe
+        const id = item.id || generarIDDesdePosicion(rack, columna, nivel, palet, lado);
+        
+        // Validar ID generado
+        if (!validarEstructuraID(id)) {
+            console.warn(`⚠️ ID generado inválido: ${id} para item ${index}`);
+        }
+        
+        cajasExistentes.add(id);
         
         // Determinar color basado en estado
         let color;
@@ -2331,9 +2552,6 @@ function crearCajasDesdeDatos(dataArray) {
         const material = ResourcePool.getMaterial(color);
         const caja = new THREE.Mesh(sharedGeometry, material);
         caja.position.set(x, y, z);
-        
-        const id = item.id || generarIDDesdePosicion(rack, columna, nivel, palet, lado);
-        cajasExistentes.add(id);
         
         caja.userData = {
             id: id,
@@ -2352,6 +2570,10 @@ function crearCajasDesdeDatos(dataArray) {
         crearEtiquetaCaja(caja, false);
         scene.add(caja);
         boxes.push(caja);
+        
+        if (config.debug) {
+            console.log(`✅ Caja creada: ${id} en posición (${x.toFixed(2)}, ${y.toFixed(2)}, ${z.toFixed(2)})`);
+        }
     });
 
     // 2. Crear palets vacíos para posiciones sin caja
@@ -2362,11 +2584,11 @@ function crearCajasDesdeDatos(dataArray) {
             const numSecciones = rackData.numeroSecciones || rackData.secciones;
             const numNiveles = rackData.niveles || 8;
             const dobleCara = rackData.dobleCara;
-            const paletsPorNivel = rackData.paletsPorNivel || { '0-1': 2, '2+': 3 };
 
             for (let seccion = 0; seccion < numSecciones; seccion++) {
                 for (let nivel = 0; nivel < numNiveles; nivel++) {
-                    const paletsPorSeccion = nivel < 2 ? paletsPorNivel['0-1'] : paletsPorNivel['2+'];
+                    // Aplicar la lógica de palets por nivel física
+                    const paletsPorSeccion = nivel < 2 ? 3 : 2; // Alturas 0,1=3 palets, alturas 2+=2 palets
                     
                     for (let palet = 0; palet < paletsPorSeccion; palet++) {
                         const caras = dobleCara ? ['A', 'B'] : ['A'];
@@ -2409,7 +2631,10 @@ function crearCajasDesdeDatos(dataArray) {
             }
         }
     });
+    
+    console.log(`✅ Sistema de IDs actualizado completado. Total de posiciones: ${boxes.length}`);
 }
+
 // Nueva función para crear etiquetas para palets vacíos
 function crearEtiquetasParaPaletsVacios() {
     // Recorrer todos los racks en la escena
