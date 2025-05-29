@@ -3701,109 +3701,65 @@ function actualizarEstadisticasFiltradas(filtros) {
 
 
 function calcularOcupacionRacks(rackEspecifico = 'all') {
-    // Obtener todos los racks existentes en la escena
     const racks = scene.children.filter(obj => 
-            obj.userData?.tipoObjeto === 'rack' &&
-            (rackEspecifico === 'all' || obj.userData.letra === rackEspecifico)
-        );
+        obj.userData?.tipoObjeto === 'rack' &&
+        (rackEspecifico === 'all' || obj.userData.letra === rackEspecifico)
+    );
         
     if (racks.length === 0) {
         console.error("No se encontraron racks en la escena");
         return;
     }
     
-    // Objeto para almacenar estadísticas por rack
     const estadisticasRacks = {};
     
-    // Inicializar estadísticas para cada rack basándose en las cajas existentes
+    // Paso 1: Calcular capacidad teórica para cada rack
     racks.forEach(rack => {
         const letraRack = rack.userData.letra;
         
-        // Inicializar estadísticas para este rack
+        // Calcular capacidad usando la configuración
+        let capacidadCalculada = calcularCapacidadRackPorConfiguracion(rack);
+        
+        // Validar contra las cajas existentes
+        const capacidadFinal = validarCapacidadContraCajas(letraRack, capacidadCalculada);
+        
         estadisticasRacks[letraRack] = {
-            capacidadTotal: 0, // Se calculará basándose en cajas existentes
+            capacidadTotal: capacidadFinal,
             ocupados: 0,
             disponibles: 0,
             sinDisponibilidad: 0,
             especiales: 0,
+            vacantes: 0,
             ocupacionTotal: 0,
             porcentajeEspeciales: 0,
             porcentajeDisponibles: 0,
             porcentajeSinDisponibilidad: 0,
-            posicionesUnicas: new Set() // Para contar posiciones únicas
+            porcentajeVacantes: 0
         };
     });
     
-    // Contar cajas existentes por rack y determinar capacidad basándose en ellas
+    // Paso 2: Contar cajas ocupadas por estado
     const cajas = scene.children.filter(obj => 
         obj.geometry instanceof THREE.BoxGeometry && 
         obj.userData?.id?.match(/^[A-Z]\d{2}[A-Z]\d{2}$/)
     );
     
-    // Primero, contar todas las posiciones únicas por rack (ocupadas y vacías)
     cajas.forEach(caja => {
         const letraRack = caja.userData.id.charAt(0);
         
         if (estadisticasRacks[letraRack]) {
-            // Agregar la posición única al set
-            estadisticasRacks[letraRack].posicionesUnicas.add(caja.userData.id);
-        }
-    });
-    
-    // Ahora buscar todas las posiciones posibles basándose en el patrón de IDs existentes
-    Object.keys(estadisticasRacks).forEach(letraRack => {
-        const cajasDelRack = cajas.filter(caja => caja.userData.id.charAt(0) === letraRack);
-        
-        if (cajasDelRack.length > 0) {
-            // Analizar el patrón de IDs para determinar la capacidad total
-            const secciones = new Set();
-            const niveles = new Set();
-            const caras = new Set();
-            const posiciones = new Set();
-            
-            cajasDelRack.forEach(caja => {
-                const id = caja.userData.id;
-                // Formato: L##A##
-                const seccion = id.substring(1, 3); // ##
-                const cara = id.charAt(3); // A
-                const posicion = id.substring(4, 6); // ##
-                
-                secciones.add(seccion);
-                niveles.add(posicion);
-                caras.add(cara);
-                posiciones.add(posicion);
-            });
-            
-            // Calcular capacidad total basándose en los patrones encontrados
-            const numSecciones = secciones.size;
-            const numNiveles = niveles.size;
-            const numCaras = caras.size;
-            const numPosiciones = posiciones.size;
-            
-            // La capacidad total sería el producto de todas las dimensiones
-            const capacidadCalculada = numSecciones * numCaras * numNiveles;
-            
-            // Usar el máximo entre la capacidad calculada y el número de posiciones únicas encontradas
-            estadisticasRacks[letraRack].capacidadTotal = Math.max(capacidadCalculada, estadisticasRacks[letraRack].posicionesUnicas.size);
-            
-            console.log(`Rack ${letraRack}: Secciones=${numSecciones}, Caras=${numCaras}, Niveles=${numNiveles}, Capacidad=${estadisticasRacks[letraRack].capacidadTotal}`);
-        }
-    });
-    
-    // Contar cajas ocupadas por rack
-    cajas.forEach(caja => {
-        const letraRack = caja.userData.id.charAt(0);
-        
-        if (estadisticasRacks[letraRack]) {
-            // Solo contar si la caja está realmente ocupada (no es solo una posición vacía)
-            if (caja.visible && caja.userData.estado !== 'vacio') {
+            // Solo contar si la caja está visible y no está vacía
+            if (caja.visible && caja.userData.estado && caja.userData.estado !== 'vacio') {
                 estadisticasRacks[letraRack].ocupados++;
                 
-                // Contabilizar por estado
-                if (caja.userData.estado === "sin disponibilidad") {
-                    estadisticasRacks[letraRack].sinDisponibilidad++;
-                } else if (caja.userData.estado === "disponible") {
-                    estadisticasRacks[letraRack].disponibles++;
+                // Contabilizar por estado específico
+                switch (caja.userData.estado) {
+                    case "sin disponibilidad":
+                        estadisticasRacks[letraRack].sinDisponibilidad++;
+                        break;
+                    case "disponible":
+                        estadisticasRacks[letraRack].disponibles++;
+                        break;
                 }
                 
                 // Contabilizar especiales (PU01P001)
@@ -3814,74 +3770,92 @@ function calcularOcupacionRacks(rackEspecifico = 'all') {
         }
     });
     
-    // Calcular porcentajes y espacios vacíos
+    // Paso 3: Calcular porcentajes y métricas finales
     Object.keys(estadisticasRacks).forEach(letraRack => {
         const stats = estadisticasRacks[letraRack];
         
-        // Validar que ocupados no sea mayor que capacidad total
-        if (stats.ocupados > stats.capacidadTotal) {
-            console.warn(`ADVERTENCIA: Rack ${letraRack} tiene más cajas ocupadas (${stats.ocupados}) que su capacidad total (${stats.capacidadTotal}). Ajustando capacidad.`);
-            stats.capacidadTotal = stats.ocupados; // Ajustar capacidad al mínimo necesario
+        // Calcular vacantes
+        stats.vacantes = Math.max(0, stats.capacidadTotal - stats.ocupados);
+        
+        // Calcular porcentajes (evitar división por cero)
+        if (stats.capacidadTotal > 0) {
+            stats.ocupacionTotal = (stats.ocupados / stats.capacidadTotal) * 100;
+            stats.porcentajeEspeciales = (stats.especiales / stats.capacidadTotal) * 100;
+            stats.porcentajeDisponibles = (stats.disponibles / stats.capacidadTotal) * 100;
+            stats.porcentajeSinDisponibilidad = (stats.sinDisponibilidad / stats.capacidadTotal) * 100;
+            stats.porcentajeVacantes = (stats.vacantes / stats.capacidadTotal) * 100;
         }
         
-        stats.vacantes = Math.max(0, stats.capacidadTotal - stats.ocupados);
-        stats.ocupacionTotal = stats.capacidadTotal > 0 ? (stats.ocupados / stats.capacidadTotal) * 100 : 0;
-        stats.porcentajeEspeciales = stats.capacidadTotal > 0 ? (stats.especiales / stats.capacidadTotal) * 100 : 0;
-        stats.porcentajeDisponibles = stats.capacidadTotal > 0 ? (stats.disponibles / stats.capacidadTotal) * 100 : 0;
-        stats.porcentajeSinDisponibilidad = stats.capacidadTotal > 0 ? (stats.sinDisponibilidad / stats.capacidadTotal) * 100 : 0;
-        stats.porcentajeVacantes = stats.capacidadTotal > 0 ? (stats.vacantes / stats.capacidadTotal) * 100 : 0;
-        
-        // Limpiar el Set que ya no necesitamos
-        delete stats.posicionesUnicas;
-        
         // Log para debugging
-        console.log(`Rack ${letraRack}: Capacidad=${stats.capacidadTotal}, Ocupados=${stats.ocupados}, Vacantes=${stats.vacantes}, Ocupación=${stats.ocupacionTotal.toFixed(2)}%`);
+        console.log(`📊 Rack ${letraRack}:`);
+        console.log(`   Capacidad: ${stats.capacidadTotal} posiciones`);
+        console.log(`   Ocupados: ${stats.ocupados} (${stats.ocupacionTotal.toFixed(1)}%)`);
+        console.log(`   Vacantes: ${stats.vacantes} (${stats.porcentajeVacantes.toFixed(1)}%)`);
+        console.log(`   Disponibles: ${stats.disponibles}, Sin disp.: ${stats.sinDisponibilidad}, Especiales: ${stats.especiales}`);
     });
-    
-    // Verificar si el panel está oculto y mostrarlo si es necesario
-    const panelExistente = document.getElementById('panel-estadisticas');
-    if (panelExistente && panelExistente.style.display === 'none') {
-        panelExistente.style.display = 'block';
-    }
     
     // Mostrar resultados
     mostrarEstadisticasRacks(estadisticasRacks, rackEspecifico);
     
     return estadisticasRacks;
 }
-
 // Función alternativa para calcular capacidad basándose en configuración conocida del rack
+// 1. Función corregida para calcular capacidad por configuración
 function calcularCapacidadRackPorConfiguracion(rack) {
     try {
-        const numSecciones = rack.userData.numeroSecciones || rack.userData.secciones || 10; // Valor por defecto
-        const dobleCara = rack.userData.dobleCara !== undefined ? rack.userData.dobleCara : true;
-        const niveles = 8; // Según tu código, siempre son 8 niveles
+        const letraRack = rack.userData.letra;
         
-        let capacidadTotal = 0;
+        // Usar la configuración del MAPA_RECORRIDO_EXTENDIDO
+        const configRack = MAPA_RECORRIDO_EXTENDIDO.racks[letraRack];
         
-        // Si tienes la configuración de palets por nivel
-        if (rack.userData.paletsPorNivel) {
-            for (let nivel = 0; nivel < niveles; nivel++) {
-                const paletsPorSeccion = nivel < 2 ? 
-                    rack.userData.paletsPorNivel['0-1'] || 1 : 
-                    rack.userData.paletsPorNivel['2+'] || 1;
-                
-                const caras = dobleCara ? 2 : 1;
-                capacidadTotal += numSecciones * paletsPorSeccion * caras;
-            }
-        } else {
-            // Cálculo simplificado si no hay configuración detallada
-            const caras = dobleCara ? 2 : 1;
-            capacidadTotal = numSecciones * caras * niveles;
+        if (!configRack) {
+            console.warn(`No se encontró configuración para rack ${letraRack}`);
+            return 0;
         }
         
+        const numSecciones = configRack.seccionesReales;
+        const dobleCara = configRack.dobleCara;
+        const caras = dobleCara ? 2 : 1; // A y B para doble cara, solo A para cara simple
+        const niveles = 8; // Según tu sistema, siempre son 8 niveles (01-08)
+        
+        // Cálculo correcto: secciones × caras × niveles
+        const capacidadTotal = numSecciones * caras * niveles;
+        
+        console.log(`Rack ${letraRack}: ${numSecciones} secciones × ${caras} caras × ${niveles} niveles = ${capacidadTotal} posiciones`);
+        
         return capacidadTotal;
+        
     } catch (error) {
         console.error("Error calculando capacidad del rack:", error);
         return 0;
     }
 }
 
+
+// 2. Función para validar capacidad contra cajas existentes
+function validarCapacidadContraCajas(letraRack, capacidadCalculada) {
+    // Contar todas las posiciones únicas que existen para este rack
+    const cajas = scene.children.filter(obj => 
+        obj.geometry instanceof THREE.BoxGeometry && 
+        obj.userData?.id?.match(/^[A-Z]\d{2}[A-Z]\d{2}$/) &&
+        obj.userData.id.charAt(0) === letraRack
+    );
+    
+    const posicionesUnicas = new Set();
+    cajas.forEach(caja => {
+        posicionesUnicas.add(caja.userData.id);
+    });
+    
+    const posicionesReales = posicionesUnicas.size;
+    
+    // Si hay más posiciones reales que la capacidad calculada, usar las reales
+    if (posicionesReales > capacidadCalculada) {
+        console.log(`Rack ${letraRack}: Ajustando capacidad de ${capacidadCalculada} a ${posicionesReales} (basado en posiciones existentes)`);
+        return posicionesReales;
+    }
+    
+    return capacidadCalculada;
+}
 // Función mejorada que usa ambos métodos de cálculo
 function calcularOcupacionRacksMejorado(rackEspecifico = 'all') {
     const racks = scene.children.filter(obj => 
