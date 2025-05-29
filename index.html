@@ -917,8 +917,48 @@ async function cargarDetallesCaja(cajaId) {
         throw error;
     }
 }
-
-
+// Función mejorada para obtener ubicaciones por filtro
+async function obtenerUbicacionesPorFiltro(cliente = null, articulo = null) {
+  try {
+    let url = 'http://129.146.161.23/BackEnd_Orion/datos_almacen.php?';
+    
+    // Construir URL según los filtros
+    const params = [];
+    if (cliente) params.push(`cliente=${encodeURIComponent(cliente)}`);
+    if (articulo) params.push(`articulo=${encodeURIComponent(articulo)}`);
+    
+    if (params.length > 0) {
+      url += params.join('&');
+    } else {
+      url += 'lista';
+    }
+    
+    console.log(`[DEBUG] Consultando API: ${url}`);
+    
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP Error: ${response.status} - ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    
+    // Verificar que la respuesta sea un array
+    if (!Array.isArray(data)) {
+      console.warn('[WARNING] La respuesta de la API no es un array:', data);
+      return [];
+    }
+    
+    // Filtrar solo ubicaciones con stock
+    const ubicacionesConStock = data.filter(u => u.stock === 1);
+    
+    console.log(`[DEBUG] Ubicaciones con stock: ${ubicacionesConStock.length}`);
+    return ubicacionesConStock;
+    
+  } catch (error) {
+    console.error('[ERROR] Error al obtener ubicaciones filtradas:', error);
+    throw error;
+  }
+}
 // Función para seleccionar caja y mostrar modal (MODIFICADA)
 async function seleccionarCaja(caja) {
     // Quitar selección anterior si existe
@@ -950,7 +990,7 @@ async function mostrarModalCaja(caja) {
     document.getElementById('modal-box-level').textContent = String.fromCharCode(65 + userData.nivel) || 'N/A';
     document.getElementById('modal-box-pallet').textContent = (userData.palet + 1) || 'N/A';
     
-    // Mostrar modal inmediatamente con información básica
+    // Mostrar modal inmediatamente with información básica
     modal.style.display = 'block';
     overlay.style.display = 'block';
     
@@ -1032,6 +1072,7 @@ async function mostrarModalCaja(caja) {
             emptyCell.colSpan = 6;
             emptyCell.style.textAlign = 'center';
             emptyCell.style.padding = '20px';
+            emptyCell.style.fontStyle = 'italic';
             emptyRow.appendChild(emptyCell);
             articulosTbody.appendChild(emptyRow);
         }
@@ -1664,7 +1705,6 @@ function crearCrucesRefuerzoSimple(rack, anchuraSeccion, alturaRack, profundidad
     rack.add(cruzFrontal);
 }
 
-
 // ============================================================================
 // REEMPLAZO DIRECTO DE FUNCIONES EXISTENTES
 // ============================================================================
@@ -1674,16 +1714,16 @@ function crearCrucesRefuerzoSimple(rack, anchuraSeccion, alturaRack, profundidad
 const MAPA_RECORRIDO_EXTENDIDO = {
     // Configuración: cada rack y cuántas secciones maneja
     racks: {
-        'A': { seccionesReales: 17, dobleCara: false },  // Solo cara frontal
+        'A': { seccionesReales: 15, dobleCara: false },  // Solo cara frontal
         'B': { seccionesReales: 17, dobleCara: true },   // Doble cara
         'C': { seccionesReales: 17, dobleCara: true },   // <-- Para tu ejemplo C03
-        'D': { seccionesReales: 14, dobleCara: true },
-        'E': { seccionesReales: 13, dobleCara: true },
-        'F': { seccionesReales: 12, dobleCara: true },
-        'G': { seccionesReales: 10, dobleCara: true },
-        'H': { seccionesReales: 11, dobleCara: true },
-        'I': { seccionesReales: 9, dobleCara: true },
-        'J': { seccionesReales: 8, dobleCara: false }    // Solo cara frontal
+        'D': { seccionesReales: 18, dobleCara: true },
+        'E': { seccionesReales: 18, dobleCara: true },
+        'F': { seccionesReales: 18, dobleCara: true },
+        'G': { seccionesReales: 13, dobleCara: true },
+        'H': { seccionesReales: 14, dobleCara: true },
+        'I': { seccionesReales: 17, dobleCara: true },
+        'J': { seccionesReales: 17, dobleCara: false }    // Solo cara frontal
     },
     
     // NUEVA FUNCIÓN: Generar IDs secuenciales por sección (NUMERACIÓN CONSECUTIVA A1+A2)
@@ -1748,7 +1788,6 @@ const MAPA_RECORRIDO_EXTENDIDO = {
             const nivelIndex = nivelLetra.charCodeAt(0) - 65; // B=1, C=2, etc.
             alturaFisica = nivelIndex + 1; // B→2, C→3, D→4, etc.
             paletFisico = palet - 1; // 01→0, 02→1
-            
             if (palet < 1 || palet > 2) {
                 console.warn(`Palet ${palet} fuera de rango para nivel ${nivelLetra} (01-02)`);
                 return null;
@@ -1943,13 +1982,13 @@ function ejemploGeneracionIDs() {
     const rackD = 'D';
     const seccion01 = 1;
     
-    console.log(`\n🏗️ Generando IDs para Rack ${rackD}, Sección ${seccion01.toString().padStart(2, '0')}:`);
+    console.log(`\n🏗️ Generando IDs para Rack ${rackD}, Sección ${seccion01.toString().padStart(2, '0')}:`); 
     
     // Generar todos los IDs para esta sección
     const todosLosIDs = MAPA_RECORRIDO_EXTENDIDO.generarIDsPorSeccion(rackD, seccion01);
     
     // Mostrar por grupos lógicos
-    console.log(`\n📦 Nivel A (A1+A2 - Alturas 0 y 1):`);
+    console.log(`\n📦 Nivel A (A1+A2 - Alturas 0 y 1):`); 
     console.log(`   A1 (Altura 0): ${todosLosIDs.slice(0, 3).join(', ')}`);
     console.log(`   A2 (Altura 1): ${todosLosIDs.slice(3, 6).join(', ')}`);
     
@@ -1969,7 +2008,7 @@ function ejemploGeneracionIDs() {
         const esValido = validarEstructuraID(id);
         const info = MAPA_RECORRIDO_EXTENDIDO.parsearID(id);
         if (info) {
-            console.log(`${id}: ${esValido ? '✅ Válido' : '❌ Inválido'} - Altura física: ${info.nivel}, Palet físico: ${info.paletFisico}`);
+            console.log(`${id}: ${esValido ? '✅ Válido' : '❌ Inválido'} - Altura física: ${info.nivel}, Palet físico: ${info.paletFisico}`); 
         } else {
             console.log(`${id}: ❌ Inválido - No se pudo parsear`);
         }
@@ -1984,31 +2023,28 @@ function ejemploGeneracionIDs() {
     console.log(`   Nivel C: ${idsC03.slice(8, 10).join(', ')}`);
 }
 // 2. FUNCIÓN ACTUALIZADA: Generar ID desde posición física (LÓGICA CONSECUTIVA)
-function generarIDDesdePosicion(rack, seccion, nivel, palet, lado = "A") {
-    // Calcular el rack lógico y sección lógica
-    const logico = MAPA_RECORRIDO_EXTENDIDO.calcularRackLogico(rack, seccion + 1, lado);
+function generarIDDesdePosicion(rack, seccion, nivelFisico, paletFisico, lado) {
+    const seccionStr = String(seccion + 1).padStart(2, '0');
     
-    const rackID = logico.rack;
-    const seccionID = logico.seccion;
-    
-    let nivelID, paletID;
-    
-    // Lógica para los primeros dos niveles físicos (0 y 1) → Nivel A con numeración consecutiva
-    if (nivel === 0) {
-        // Altura 0 → A01, A02, A03
-        nivelID = 'A';
-        paletID = String(palet + 1).padStart(2, '0');
-    } else if (nivel === 1) {
-        // Altura 1 → A04, A05, A06
-        nivelID = 'A';
-        paletID = String(palet + 4).padStart(2, '0');
+    if (nivelFisico === 0) {
+        // Altura física 0 → A01, A02, A03
+        const paletLogico = paletFisico + 1;
+        const paletStr = String(paletLogico).padStart(2, '0');
+        return `${rack}${seccionStr}A${paletStr}`;
+        
+    } else if (nivelFisico === 1) {
+        // Altura física 1 → A04, A05, A06
+        const paletLogico = paletFisico + 4;
+        const paletStr = String(paletLogico).padStart(2, '0');
+        return `${rack}${seccionStr}A${paletStr}`;
+        
     } else {
-        // Alturas 2+ → B01, B02, C01, C02, etc.
-        nivelID = String.fromCharCode(65 + nivel); // 2→C, 3→D, etc.
-        paletID = String(palet + 1).padStart(2, '0');
+        // Alturas físicas 2-7 → B01-B02, C01-C02, etc.
+        const nivelLetra = String.fromCharCode(65 + nivelFisico - 1); // 2→B, 3→C, etc.
+        const paletLogico = paletFisico + 1;
+        const paletStr = String(paletLogico).padStart(2, '0');
+        return `${rack}${seccionStr}${nivelLetra}${paletStr}`;
     }
-    
-    return `${rackID}${String(seccionID).padStart(2, '0')}${nivelID}${paletID}`;
 }
 
 // 4. FUNCIÓN MODIFICADA: inicializarRacks (REEMPLAZA LA EXISTENTE)
@@ -2157,7 +2193,7 @@ function validarIDExtendido(id) {
     return { 
         valido: true, 
         posicionFisica: posicionFisica,
-        info: `ID ${id} → Rack físico ${posicionFisica.rack}, Sección ${posicionFisica.seccion + 1}, Lado ${posicionFisica.lado}`
+        info: `ID ${id} → Rack físico ${posicionFisica.rack}, Sección ${posicionFisica.seccion + 1}, Lado ${posicionFisica.lado}` 
     };
 }
 
@@ -2269,27 +2305,21 @@ function obtenerPosicionDesdeDatos(item) {
     const inicioRack = posXRack - halfAncho;
     const inicioSeccion = inicioRack + (seccionValida * anchoSeccion);
     
-    // Calcular dimensiones de palets
-    const espacioNecesarioOriginal = (2 * configPalets.margenSeccion) +
-                                  (paletsPorSeccion * configPalets.ancho) +
-                                  ((paletsPorSeccion - 1) * configPalets.separacion);
-    
+    // Ajustar dimensiones de palets para que quepan en la sección
     let anchoPalet, separacion, margenAjustado;
+    const espacioNecesario = (2 * configPalets.margenSeccion) +
+                           (paletsPorSeccion * configPalets.ancho) +
+                           ((paletsPorSeccion - 1) * configPalets.separacion);
     
-    if (espacioNecesarioOriginal <= anchoSeccion) {
+    if (espacioNecesario <= anchoSeccion) {
         anchoPalet = configPalets.ancho;
         separacion = configPalets.separacion;
-        
-        const espacioSobrante = anchoSeccion - espacioNecesarioOriginal;
-        margenAjustado = configPalets.margenSeccion + (espacioSobrante / 2);
+        margenAjustado = configPalets.margenSeccion + ((anchoSeccion - espacioNecesario) / 2);
     } else {
-        const separacionMinima = 0.1;
-        const margenMinimo = 0.1;
-        const espacioDisponible = anchoSeccion - (2 * margenMinimo);
-        
-        separacion = separacionMinima;
-        anchoPalet = (espacioDisponible - ((paletsPorSeccion - 1) * separacionMinima)) / paletsPorSeccion;
-        margenAjustado = margenMinimo;
+        // Ajustar para que quepa
+        separacion = 0.1;
+        anchoPalet = (anchoSeccion - (2 * 0.1) - ((paletsPorSeccion - 1) * separacion)) / paletsPorSeccion;
+        margenAjustado = 0.1;
     }
     
     // Verificar que el palet está dentro del rango válido
@@ -2298,31 +2328,46 @@ function obtenerPosicionDesdeDatos(item) {
     }
     const paletValido = Math.min(Math.max(0, palet), paletsPorSeccion - 1);
     
-    // Calcular posición X del palet
+    // *** MODIFICACIÓN PRINCIPAL: Ajustar orden de palets para cara izquierda ***
+    let paletPosicion = paletValido;
+    const ladoEfectivo = dobleCara ? lado : "A";
+    
+    // Si es cara izquierda (A), invertir el orden de los palets para lectura izquierda-derecha
+    // Invertir solo si es doble cara y estamos en la cara A (izquierda)
+     if (dobleCara && ladoEfectivo === "A") {
+    paletPosicion = (paletsPorSeccion - 1) - paletValido;
+}
+
+    
+    // Calcular posición X del palet (usando paletPosicion ajustada)
     const posX = inicioSeccion + margenAjustado + 
-                (paletValido * (anchoPalet + separacion)) + (anchoPalet / 2);
+                (paletPosicion * (anchoPalet + separacion)) + (anchoPalet / 2);
     
     // Calcular posición Z según el lado
-    const ladoEfectivo = dobleCara ? lado : "A";
     const zOffset = ladoEfectivo === "A" ? -halfProf + 0.2 : halfProf - 0.2;
     const posZ = rackObj.position.z + zOffset;
     
     // Calcular posición Y (altura según nivel)
     const espacioEntreNiveles = rackData.espacioEntreNiveles || (config.alturaCaja + 0.2);
-    const posY = nivel * espacioEntreNiveles + config.alturaCaja/2;
+    const posY = nivel * espacioEntreNiveles + (config.alturaCaja / 2);
     
     // Debug extendido
     if (config.debug && typeof item.id !== 'undefined') {
         const idCalculado = generarIDDesdePosicion(rack, seccionValida, nivel, paletValido, ladoEfectivo);
-        console.log(`🔍 DEBUG EXTENDIDO:`);
+        console.log(`🔍 DEBUG POSICIONAMIENTO CARA IZQUIERDA:`);
         console.log(`   ID Original: ${item.id}`);
         console.log(`   ID Calculado: ${idCalculado}`);
-        console.log(`   Rack Físico: ${rack} (${numSecciones} secciones)`);
-        console.log(`   Posición: Sección ${seccionValida+1}, Lado ${ladoEfectivo}`);
+        console.log(`   Rack: ${rack}, Sección: ${seccionValida+1}, Lado: ${ladoEfectivo}`);
+        console.log(`   Palet Original: ${paletValido+1}, Palet Posición: ${paletPosicion+1}`);
         console.log(`   Coordenadas: (${posX.toFixed(2)}, ${posY.toFixed(2)}, ${posZ.toFixed(2)})`);
     }
     
-    return { x: posX, y: posY, z: posZ };
+    return { 
+        x: posX, 
+        y: posY, 
+        z: posZ,
+        orientacion: ladoEfectivo === "A" ? "invertida" : "normal" // Para orientación de etiquetas
+    };
 }
 
 function debugSistemaExtendido() {
@@ -2357,179 +2402,97 @@ if (typeof window !== 'undefined') {
 }
 
 // Función unificada para crear etiquetas de cajas/palets
-function crearEtiquetaCaja(caja, esPaletVacio = false) {
+function crearEtiquetaCaja(caja) {
     const userData = caja.userData;
     const id = userData.id;
-    
     if (!id) return;
 
-    if (esPaletVacio) {
-        // ----------------------------
-        // VERSIÓN OPTIMIZADA PARA PALETS VACÍOS
-        // ----------------------------
-        
-        // Canvas más pequeño para optimizar
-        const canvas = document.createElement('canvas');
-        canvas.width = 192;  // Reducido para mejor performance
-        canvas.height = 96;
-        const context = canvas.getContext('2d');
-        
-        // Fondo semitransparente
-        context.fillStyle = 'rgba(248, 248, 248, 0.9)';
-        context.fillRect(0, 0, canvas.width, canvas.height);
-        
-        // Borde discontinuo naranja
-        context.strokeStyle = '#FF9800';
-        context.lineWidth = 4;
-        context.setLineDash([6, 3]);
-        context.strokeRect(3, 3, canvas.width - 6, canvas.height - 6);
-        context.setLineDash([]);
-        
-        // Texto del ID
-        context.fillStyle = '#333333';
-        context.font = 'bold 20px Arial';
-        context.textAlign = 'center';
-        context.textBaseline = 'middle';
-        context.fillText(id, canvas.width / 2, canvas.height * 0.35);
-        
-        // Texto "DISPONIBLE"
-        context.font = 'bold 16px Arial';
-        context.fillStyle = '#4CAF50';
-        context.fillText('DISPONIBLE', canvas.width / 2, canvas.height * 0.7);
-        
-        // Crear textura
-        const texture = new THREE.CanvasTexture(canvas);
-        texture.minFilter = THREE.LinearFilter;
-        
-        // Material para la etiqueta
-        const material = new THREE.MeshBasicMaterial({
-            map: texture,
-            transparent: true,
-            side: THREE.DoubleSide
-        });
-        
-        // Geometría más pequeña para palets vacíos
-        const geometria = new THREE.PlaneGeometry(
-            config.anchoCaja * 0.7, 
-            config.anchoCaja * 0.5
-        );
-        
-        // Crear etiqueta solo en la parte frontal
+    // Solo etiquetas para cajas con contenido
+    // Canvas para etiqueta normal
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 128;
+    const context = canvas.getContext('2d');
+    
+    // Fondo blanco con borde
+    context.fillStyle = '#FFFFFF';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.strokeStyle = '#000000';
+    context.lineWidth = 8;
+    context.strokeRect(4, 4, canvas.width - 8, canvas.height - 8);
+    
+    // Texto del ID
+    context.fillStyle = '#000000';
+    context.font = 'bold 36px Arial';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillText(id, canvas.width / 2, canvas.height / 2);
+    
+    // Crear textura
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.minFilter = THREE.LinearFilter;
+    
+    // Material para la etiqueta
+    const material = new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        side: THREE.DoubleSide
+    });
+    
+    // Geometría de la etiqueta
+    const geometria = new THREE.PlaneGeometry(
+        config.anchoCaja * 0.9,
+        config.anchoCaja * 0.7
+    );
+    
+    // Crear grupo para las 4 etiquetas
+    const grupo = new THREE.Group();
+    
+    // Posiciones relativas para las etiquetas
+    const offset = 0.01;
+    const halfAncho = config.anchoCaja / 2 + offset;
+    const halfProf = config.profundidadCaja / 2 + offset;
+    
+    // Función para crear una etiqueta en una posición
+    const crearEtiqueta = (rotY, posX, posZ) => {
         const etiqueta = new THREE.Mesh(geometria, material);
-        etiqueta.position.set(0, 0, config.profundidadCaja / 2 + 0.01);
-        
-        // Añadir plataforma visual delgada para palet vacío
-        const plataformaGeo = new THREE.BoxGeometry(
-            config.anchoCaja * 0.9,
-            config.alturaCaja * 0.1,
-            config.profundidadCaja * 0.9
-        );
-        const plataformaMat = new THREE.MeshBasicMaterial({
-            color: 0xE0E0E0,
-            transparent: true,
-            opacity: 0.4
-        });
-        const plataforma = new THREE.Mesh(plataformaGeo, plataformaMat);
-        plataforma.position.y = -config.alturaCaja * 0.3;
-        
-        // Agrupar etiqueta y plataforma
-        const grupo = new THREE.Group();
-        grupo.add(etiqueta);
-        grupo.add(plataforma);
-        
-        caja.add(grupo);
-        return grupo;
-        
-    } else {
-        // ----------------------------
-        // VERSIÓN PARA CAJAS CON CONTENIDO
-        // ----------------------------
-        
-        // Canvas para etiqueta normal
-        const canvas = document.createElement('canvas');
-        canvas.width = 256;
-        canvas.height = 128;
-        const context = canvas.getContext('2d');
-        
-        // Fondo blanco con borde
-        context.fillStyle = '#FFFFFF';
-        context.fillRect(0, 0, canvas.width, canvas.height);
-        context.strokeStyle = '#000000';
-        context.lineWidth = 8;
-        context.strokeRect(4, 4, canvas.width - 8, canvas.height - 8);
-        
-        // Texto del ID
-        context.fillStyle = '#000000';
-        context.font = 'bold 36px Arial';
-        context.textAlign = 'center';
-        context.textBaseline = 'middle';
-        context.fillText(id, canvas.width / 2, canvas.height / 2);
-        
-        // Crear textura
-        const texture = new THREE.CanvasTexture(canvas);
-        texture.minFilter = THREE.LinearFilter;
-        
-        // Material para la etiqueta
-        const material = new THREE.MeshBasicMaterial({
-            map: texture,
-            transparent: true,
-            side: THREE.DoubleSide
-        });
-        
-        // Geometría de la etiqueta
-        const geometria = new THREE.PlaneGeometry(
-            config.anchoCaja * 0.9,
-            config.anchoCaja * 0.7
-        );
-        
-        // Crear grupo para las 4 etiquetas
-        const grupo = new THREE.Group();
-        
-        // Posiciones relativas para las etiquetas
-        const offset = 0.01;
-        const halfAncho = config.anchoCaja / 2 + offset;
-        const halfProf = config.profundidadCaja / 2 + offset;
-        
-        // Función para crear una etiqueta en una posición
-        const crearEtiqueta = (rotY, posX, posZ) => {
-            const etiqueta = new THREE.Mesh(geometria, material);
-            etiqueta.rotation.y = rotY;
-            etiqueta.position.set(posX, 0, posZ);
-            return etiqueta;
-        };
-        
-        // Añadir etiquetas a los 4 lados
-        grupo.add(crearEtiqueta(0, 0, halfProf)); // Frente
-        grupo.add(crearEtiqueta(Math.PI, 0, -halfProf)); // Atrás
-        grupo.add(crearEtiqueta(Math.PI/2, halfAncho, 0)); // Derecha
-        grupo.add(crearEtiqueta(-Math.PI/2, -halfAncho, 0)); // Izquierda
-        
-        caja.add(grupo);
-        return grupo;
-    }
+        etiqueta.rotation.y = rotY;
+        etiqueta.position.set(posX, 0, posZ);
+        return etiqueta;
+    };
+    
+    // Añadir etiquetas a los 4 lados
+    grupo.add(crearEtiqueta(0, 0, halfProf)); // Frente
+    grupo.add(crearEtiqueta(Math.PI, 0, -halfProf)); // Atrás
+    grupo.add(crearEtiqueta(Math.PI/2, halfAncho, 0)); // Derecha
+    grupo.add(crearEtiqueta(-Math.PI/2, -halfAncho, 0)); // Izquierda
+    
+    caja.add(grupo);
+    return grupo;
 }
-
+// Configuración de colores según estados y códigos
 // Configuración de colores según estados y códigos
 const COLORES = {
-  DISPONIBLE: 0x4CAF50,    // Verde
-  SIN_DISPONIBILIDAD: 0xF44336, // Rojo
-  COD_AREA_ESPECIAL: 0x9C27B0,  // Verde más intenso para PU01P001
-  DEFAULT: 0x2196F3       // Azul por defecto
+  DISPONIBLE: 0x4CAF50,         // Verde
+  SIN_DISPONIBILIDAD: 0x2196F3, // Rojo
+  AREA_PU: 0xFF0000,           // Rojo para área PU
+  DEFAULT: 0x2196F3            // Azul por defecto
 };
 
+// Función modificada para crear cajas y etiquetas para palets vacíos
 // Función modificada para crear cajas y etiquetas para palets vacíos
 function crearCajasDesdeDatos(dataArray) {
     const sharedGeometry = ResourcePool.getBoxGeometry();
     const cajasExistentes = new Set();
     
-    console.log("🔄 Iniciando creación de cajas con sistema de IDs actualizado...");
+    console.log("🔄 Iniciando creación de cajas con sistema de alturas corregido...");
     
     // 1. Primero crear todas las cajas con contenido
     dataArray.forEach((item, index) => {
         const { rack, columna, nivel, palet, lado } = obtenerParametrosPosicion(item);
         const { x, y, z } = obtenerPosicionDesdeDatos(item);
         
-        // Generar ID si no existe
+        // Generar ID si no existe (usando función corregida)
         const id = item.id || generarIDDesdePosicion(rack, columna, nivel, palet, lado);
         
         // Validar ID generado
@@ -2539,13 +2502,23 @@ function crearCajasDesdeDatos(dataArray) {
         
         cajasExistentes.add(id);
         
-        // Determinar color basado en estado
+        // Determinar color basado en área y estado
         let color;
-        if (item.cod_area === "PU01P001") {
+        
+        // Prioridad 1: Área PU (ROJO)
+        if (item.area === "PU") {
+            color = COLORES.AREA_PU;
+        }
+        // Prioridad 2: Código especial PU01P001
+        else if (item.cod_area === "PU01P001") {
             color = COLORES.COD_AREA_ESPECIAL;
-        } else if (item.estado === "sin disponibilidad") {
+        }
+        // Prioridad 3: Estado sin disponibilidad
+        else if (item.estado === "sin disponibilidad") {
             color = COLORES.SIN_DISPONIBILIDAD;
-        } else {
+        }
+        // Prioridad 4: Color personalizado o por defecto
+        else {
             color = item.color || COLORES.DEFAULT;
         }
         
@@ -2564,6 +2537,7 @@ function crearCajasDesdeDatos(dataArray) {
             articulos: item.articulos || [],
             estado: item.estado || "disponible",
             cod_area: item.cod_area || "",
+            area: item.area || "", // Asegurar que se guarde el área
             esPaletVacio: false
         };
 
@@ -2572,137 +2546,15 @@ function crearCajasDesdeDatos(dataArray) {
         boxes.push(caja);
         
         if (config.debug) {
-            console.log(`✅ Caja creada: ${id} en posición (${x.toFixed(2)}, ${y.toFixed(2)}, ${z.toFixed(2)})`);
-        }
-    });
-
-    // 2. Crear palets vacíos para posiciones sin caja
-    scene.children.forEach(rackObj => {
-        if (rackObj.userData?.tipoObjeto === 'rack') {
-            const rackData = rackObj.userData;
-            const rackLetra = rackData.letra;
-            const numSecciones = rackData.numeroSecciones || rackData.secciones;
-            const numNiveles = rackData.niveles || 8;
-            const dobleCara = rackData.dobleCara;
-
-            for (let seccion = 0; seccion < numSecciones; seccion++) {
-                for (let nivel = 0; nivel < numNiveles; nivel++) {
-                    // Aplicar la lógica de palets por nivel física
-                    const paletsPorSeccion = nivel < 2 ? 3 : 2; // Alturas 0,1=3 palets, alturas 2+=2 palets
-                    
-                    for (let palet = 0; palet < paletsPorSeccion; palet++) {
-                        const caras = dobleCara ? ['A', 'B'] : ['A'];
-                        
-                        caras.forEach(lado => {
-                            const id = generarIDDesdePosicion(rackLetra, seccion, nivel, palet, lado);
-                            
-                            if (!cajasExistentes.has(id)) {
-                                const { x, y, z } = obtenerPosicionDesdeDatos({
-                                    rack: rackLetra,
-                                    seccion: seccion,
-                                    nivel: nivel,
-                                    palet: palet,
-                                    lado: lado
-                                });
-                                
-                                // Crear contenedor para palet vacío
-                                const paletVacio = new THREE.Group();
-                                paletVacio.position.set(x, y, z);
-                                
-                                paletVacio.userData = {
-                                    id: id,
-                                    rack: rackLetra,
-                                    nivel: nivel,
-                                    seccion: seccion,
-                                    palet: palet,
-                                    lado: lado,
-                                    estado: "disponible",
-                                    esPaletVacio: true
-                                };
-                                
-                                // Crear etiqueta optimizada
-                                crearEtiquetaCaja(paletVacio, true);
-                                scene.add(paletVacio);
-                                boxes.push(paletVacio);
-                            }
-                        });
-                    }
-                }
-            }
+            console.log(`✅ Caja creada: ${id} en altura física ${nivel}, palet físico ${palet}, área: ${item.area}`);
         }
     });
     
     console.log(`✅ Sistema de IDs actualizado completado. Total de posiciones: ${boxes.length}`);
 }
 
-// Nueva función para crear etiquetas para palets vacíos
-function crearEtiquetasParaPaletsVacios() {
-    // Recorrer todos los racks en la escena
-    scene.children.forEach(rackObj => {
-        if (rackObj.userData?.tipoObjeto === 'rack') {
-            const rackData = rackObj.userData;
-            const rackLetra = rackData.letra;
-            const numSecciones = rackData.numeroSecciones || rackData.secciones;
-            const numNiveles = rackData.niveles || 8;
-            const dobleCara = rackData.dobleCara;
-            const paletsPorNivel = rackData.paletsPorNivel || { '0-1': 2, '2+': 3 };
 
-            // Recorrer todas las posiciones posibles
-            for (let seccion = 0; seccion < numSecciones; seccion++) {
-                for (let nivel = 0; nivel < numNiveles; nivel++) {
-                    const paletsPorSeccion = nivel < 2 ? paletsPorNivel['0-1'] : paletsPorNivel['2+'];
-                    
-                    for (let palet = 0; palet < paletsPorSeccion; palet++) {
-                        // Verificar ambas caras si es doble cara
-                        const caras = dobleCara ? ['A', 'B'] : ['A'];
-                        
-                        caras.forEach(lado => {
-                            const id = generarIDDesdePosicion(rackLetra, seccion, nivel, palet, lado);
-                            
-                            // Verificar si ya existe una caja con este ID
-                            const cajaExistente = boxes.find(b => b.userData.id === id);
-                            
-                            if (!cajaExistente) {
-                                // Crear solo la etiqueta para este palet vacío
-                                const { x, y, z } = obtenerPosicionDesdeDatos({
-                                    rack: rackLetra,
-                                    seccion: seccion,
-                                    nivel: nivel,
-                                    palet: palet,
-                                    lado: lado
-                                });
-                                
-                                // Crear un objeto invisible para contener la etiqueta
-                                const paletVacio = new THREE.Group();
-                                paletVacio.position.set(x, y, z);
-                                
-                                paletVacio.userData = {
-                                    id: id,
-                                    rack: rackLetra,
-                                    nivel: nivel,
-                                    seccion: seccion,
-                                    palet: palet,
-                                    lado: lado,
-                                    contenido: "",
-                                    articulos: [],
-                                    estado: "vacio",
-                                    cod_area: ""
-                                };
-                                
-                                crearEtiquetaCaja(paletVacio);
-                                scene.add(paletVacio);
-                                boxes.push(paletVacio);
-                            }
-                        });
-                    }
-                }
-            }
-        }
-    });
-}
-
-// Función para actualizar el estado de una caja
-function actualizarEstadoCaja(idCaja, nuevoEstado, nuevoCodArea = null) {
+function actualizarEstadoCaja(idCaja, nuevoEstado, nuevoCodArea = null, nuevaArea = null) {
     const caja = boxes.find(b => b.userData.id === idCaja);
     
     if (caja) {
@@ -2711,17 +2563,27 @@ function actualizarEstadoCaja(idCaja, nuevoEstado, nuevoCodArea = null) {
         if (nuevoCodArea !== null) {
             caja.userData.cod_area = nuevoCodArea;
         }
+        if (nuevaArea !== null) {
+            caja.userData.area = nuevaArea;
+        }
         
-        // Actualizar color
+        // Determinar color con la misma lógica de prioridades
         let color;
         
-        if (caja.userData.cod_area === "PU01P001") {
-            color = COLORES.COD_AREA_ESPECIAL;
-        } else if (nuevoEstado === "disponible") {
-            color = COLORES.DISPONIBLE;
-        } else if (nuevoEstado === "sin disponibilidad") {
+        // Prioridad 1: Área PU (ROJO)
+        if (caja.userData.area === "PU") {
+            color = COLORES.AREA_PU;
+        }
+        // Prioridad 3: Estado sin disponibilidad
+        else if (nuevoEstado === "sin disponibilidad") {
             color = COLORES.SIN_DISPONIBILIDAD;
-        } else {
+        }
+        // Prioridad 4: Estado disponible
+        else if (nuevoEstado === "disponible") {
+            color = COLORES.DISPONIBLE;
+        }
+        // Prioridad 5: Por defecto
+        else {
             color = COLORES.DEFAULT;
         }
         
@@ -2735,6 +2597,22 @@ function actualizarEstadoCaja(idCaja, nuevoEstado, nuevoCodArea = null) {
     return false;
 }
 
+// Función auxiliar para actualizar múltiples cajas desde la API
+function actualizarCajasDesdeAPI(datosAPI) {
+    datosAPI.forEach(item => {
+        const caja = boxes.find(b => b.userData.id === item.id);
+        if (caja) {
+            actualizarEstadoCaja(
+                item.id, 
+                item.estado || "disponible", 
+                item.cod_area || null,
+                item.area || null
+            );
+        }
+    });
+    
+    console.log(`✅ Actualización desde API completada. Cajas PU pintadas de rojo.`);
+}
 // Función auxiliar para verificar IDs y posiciones
 function verificarPosicionesID(rackLetra) {
     const rackObj = scene.children.find(obj => 
@@ -2820,15 +2698,32 @@ function calcularPosicionPalet(rackObj, seccion, nivel, palet, lado) {
         margenAjustado = 0.1;
     }
     
-    // Posición X del palet
-    const posX = inicioSeccion + margenAjustado + 
-                (palet * (anchoPalet + separacion)) + (anchoPalet / 2);
+    // Verificar que el palet está dentro del rango válido
+    if (palet < 0 || palet >= paletsPorSeccion) {
+        console.warn(`⚠️ El palet ${palet+1} está fuera del rango para nivel ${nivel+1} (1-${paletsPorSeccion}). Ajustando valor.`);
+    }
+    const paletValido = Math.min(Math.max(0, palet), paletsPorSeccion - 1);
     
-    // Posición Z según el lado
-    const zOffset = lado === "A" ? -halfProf + 0.1 : halfProf - 0.1;
+    // *** MODIFICACIÓN PRINCIPAL: Ajustar orden de palets para cara izquierda ***
+    let paletPosicion = paletValido;
+    const ladoEfectivo = dobleCara ? lado : "A";
+    
+    // Si es cara izquierda (A), invertir el orden de los palets para lectura izquierda-derecha
+    // Invertir solo si es doble cara y estamos en la cara A (izquierda)
+     if (dobleCara && ladoEfectivo === "A") {
+    paletPosicion = (paletsPorSeccion - 1) - paletValido;
+}
+
+    
+    // Calcular posición X del palet (usando paletPosicion ajustada)
+    const posX = inicioSeccion + margenAjustado + 
+                (paletPosicion * (anchoPalet + separacion)) + (anchoPalet / 2);
+    
+    // Calcular posición Z según el lado
+    const zOffset = ladoEfectivo === "A" ? -halfProf + 0.2 : halfProf - 0.2;
     const posZ = rackObj.position.z + zOffset;
     
-    // Posición Y (altura según nivel)
+    // Calcular posición Y (altura según nivel)
     const espacioEntreNiveles = rackData.espacioEntreNiveles || (config.alturaCaja + 0.2);
     const posY = nivel * espacioEntreNiveles + (config.alturaCaja / 2);
     
@@ -2852,6 +2747,7 @@ function calcularPosicionPalet(rackObj, seccion, nivel, palet, lado) {
     });
 
   
+    
     
     needsRender = true;
   }
@@ -2901,50 +2797,138 @@ function calcularPosicionPalet(rackObj, seccion, nivel, palet, lado) {
     needsRender = true;
   }
 
+  async function manejarCambioArticulo() {
+  const selectArticulo = document.getElementById('articulo-filter');
+  
+  // Actualizar filtros activos
+  filtrosActivos.articulo = selectArticulo.value || null;
+  
+  if (filtrosActivos.articulo) {
+    console.log(`[DEBUG] Artículo seleccionado: ${filtrosActivos.articulo}`);
+  }
 
-  async function manejarCambioCliente() {
+  // Aplicar filtros
+  await aplicarFiltrosDesdeAPI();
+}
+
+
+// Función para manejar cambio de rack
+async function manejarCambioRack() {
+  const selectRack = document.getElementById('rack-filter');
+  
+  // Actualizar filtros activos
+  filtrosActivos.rack = selectRack.value || 'all';
+  
+  // Limpiar otros filtros si se cambia el rack
+  if (filtrosActivos.rack !== 'all') {
+    const selectCliente = document.getElementById('cliente-filter');
+    const selectArticulo = document.getElementById('articulo-filter');
+    const clienteInput = document.getElementById('cliente-filter-search');
+    const articuloInput = document.getElementById('articulo-filter-search');
+    
+    selectCliente.value = '';
+    selectArticulo.value = '';
+    if (clienteInput) clienteInput.value = '';
+    if (articuloInput) articuloInput.value = '';
+    
+    filtrosActivos.cliente = null;
+    filtrosActivos.articulo = null;
+  }
+  
+  console.log(`[DEBUG] Rack seleccionado: ${filtrosActivos.rack}`);
+  
+  // Aplicar filtros
+  await aplicarFiltrosDesdeAPI();
+  
+  // Enfocar rack si no es 'all'
+  if (filtrosActivos.rack !== 'all') {
+    enfocarRack(filtrosActivos.rack);
+  }
+}
+
+// Función para resetear todos los filtros
+async function resetearFiltros() {
+  const selectRack = document.getElementById('rack-filter');
+  const selectCliente = document.getElementById('cliente-filter');
+  const selectArticulo = document.getElementById('articulo-filter');
+  
+  // Resetear selectores
+  selectRack.value = 'all';
+  selectCliente.value = '';
+  selectArticulo.value = '';
+  
+  // Limpiar campos de búsqueda
+  const inputs = ['cliente-filter-search', 'articulo-filter-search'];
+  inputs.forEach(inputId => {
+    const input = document.getElementById(inputId);
+    if (input) input.value = '';
+  });
+  
+  // Resetear filtros activos
+  filtrosActivos = {
+    rack: 'all',
+    cliente: null,
+    articulo: null
+  };
+  
+  // Limpiar selector de artículos
+  selectArticulo.innerHTML = '<option value="">Todos los artículos</option>';
+  
+  console.log('[DEBUG] Filtros reseteados');
+  
+  // Aplicar filtros (mostrar todo)
+  await aplicarFiltrosDesdeAPI();
+}
+
+// Función para manejar cambio de cliente
+async function manejarCambioCliente() {
   const selectCliente = document.getElementById('cliente-filter');
   const selectArticulo = document.getElementById('articulo-filter');
   const inputArticulo = document.getElementById('articulo-filter-search');
 
-  // Limpiar artículos al cambiar cliente
+  // Limpiar selector de artículos
   selectArticulo.innerHTML = '<option value="">Todos los artículos</option>';
   if (inputArticulo) inputArticulo.value = '';
 
-  if (!selectCliente.value) {
-    return;
-  }
+  // Actualizar filtros activos
+  filtrosActivos.cliente = selectCliente.value || null;
+  filtrosActivos.articulo = null;
 
-  // Extraer coddiv del valor seleccionado (formato: "0000 - DEMO")
-  const coddiv = selectCliente.value.split(' - ')[0];
-  console.log(`[DEBUG] Cargando artículos para cliente ${coddiv}...`);
-
-  try {
-    // Cargar artículos desde API
-    const articulos = await cargarArticulosDeCliente(coddiv);
+  if (filtrosActivos.cliente) {
+    // Extraer código del cliente (formato: "0000 - DEMO" -> "0000")
+    const coddiv = filtrosActivos.cliente.split(' - ')[0];
+    filtrosActivos.cliente = coddiv;
     
-    // Verificar si hay artículos
-    if (articulos.length === 0) {
-      console.warn(`[DEBUG] No se encontraron artículos para ${coddiv}`);
-      mostrarError(`El cliente ${selectCliente.value} no tiene artículos registrados`);
-      return;
+    console.log(`[DEBUG] Cliente seleccionado: ${coddiv}`);
+    
+    try {
+      // Cargar artículos del cliente seleccionado
+      const articulos = await cargarArticulosDeCliente(coddiv);
+      
+      if (articulos.length === 0) {
+        console.warn(`[DEBUG] No se encontraron artículos para ${coddiv}`);
+        mostrarMensaje(`El cliente ${selectCliente.options[selectCliente.selectedIndex].text} no tiene artículos registrados`, 'warning');
+      } else {
+        // Llenar selector de artículos
+        articulos.forEach(articulo => {
+          const option = document.createElement('option');
+          option.value = articulo.codart;
+          option.textContent = `${articulo.codart} - ${articulo.desart}`;
+          selectArticulo.appendChild(option);
+        });
+        
+        console.log(`[DEBUG] ${articulos.length} artículos cargados para ${coddiv}`);
+      }
+    } catch (error) {
+      console.error(`[ERROR] Error al cargar artículos para ${coddiv}:`, error);
+      mostrarError('Error al cargar artículos del cliente');
     }
-
-    // Llenar selector de artículos
-    articulos.forEach(articulo => {
-      const option = document.createElement('option');
-      option.value = articulo.codart; // Usamos codart como valor
-      option.textContent = `${articulo.codart} - ${articulo.desart}`; // Mostramos codart - desart
-      option.dataset.coddiv = articulo.coddiv; // Guardamos coddiv en dataset
-      selectArticulo.appendChild(option);
-    });
-
-    console.log(`[DEBUG] Artículos cargados para ${coddiv}:`, articulos);
-  } catch (error) {
-    console.error(`[ERROR] Error al cargar artículos:`, error);
-    mostrarError('Error al cargar artículos. Intente nuevamente.');
   }
+
+  // Aplicar filtros
+  await aplicarFiltrosDesdeAPI();
 }
+
 
 // 1. Modificar la función de filtrado para usar las relaciones
 function filtrarCajas(filtros) {
@@ -2953,8 +2937,7 @@ function filtrarCajas(filtros) {
   // Extraer solo el código del cliente (ej: "0000" de "0000 - DEMO")
   const codCliente = cliente ? cliente.split(' - ')[0] : null;
 
-  // Extraer solo el código del artículo (ej: "0000CR01-0000" de "0000CR01-0000 - DESCRIPCION")
-  const codArticulo = articulo ? articulo.split(' - ')[0] : null;
+  console.log('[DEBUG] Aplicando filtros:', { rack, codCliente, articulo });
 
   boxes.forEach(caja => {
     const userData = caja.userData;
@@ -2965,24 +2948,42 @@ function filtrarCajas(filtros) {
       visible = visible && (userData.rack === rack);
     }
 
-    // Filtro por cliente (RELACIÓN CLAVE)
+    // Filtro por cliente - CORREGIDO
     if (codCliente) {
-      // Verificar si la caja pertenece al cliente seleccionado
-      visible = visible && (
-        // Caso 1: El cliente está directamente en los datos de la caja
-        userData.cliente === codCliente ||
-        // Caso 2: El artículo de la caja pertenece al cliente
-        (userData.articulos && userData.articulos.some(a =>
-          articulosData[codCliente]?.some(art => art.codart === a.codigo)
-        ))
-      );
+      let clienteEncontrado = false;
+      
+      // Verificar si algún artículo de la caja pertenece al cliente seleccionado
+      if (userData.articulos && userData.articulos.length > 0) {
+        userData.articulos.forEach(articuloCaja => {
+          // Buscar en los datos de artículos cargados si este artículo pertenece al cliente
+          if (articulosData[codCliente]) {
+            const articuloExiste = articulosData[codCliente].some(art => 
+              art.codart === articuloCaja.codigo || 
+              art.codartdiv === articuloCaja.codigo
+            );
+            if (articuloExiste) {
+              clienteEncontrado = true;
+            }
+          }
+        });
+      }
+      
+      visible = visible && clienteEncontrado;
     }
 
-    // Filtro por artículo
-    if (codArticulo) {
-      visible = visible && (
-        userData.articulos && userData.articulos.some(a => a.codigo === codArticulo)
-      );
+    // Filtro por artículo - CORREGIDO
+    if (articulo) {
+      let articuloEncontrado = false;
+      
+      if (userData.articulos && userData.articulos.length > 0) {
+        articuloEncontrado = userData.articulos.some(art => 
+          art.codigo === articulo ||
+          art.codigo?.includes(articulo) ||
+          articulo.includes(art.codigo)
+        );
+      }
+      
+      visible = visible && articuloEncontrado;
     }
 
     caja.visible = visible;
@@ -2990,8 +2991,11 @@ function filtrarCajas(filtros) {
 
   actualizarVisibilidadRacks();
   needsRender = true;
+  
+  // Log para debug
+  const cajasVisibles = boxes.filter(caja => caja.visible);
+  console.log(`[DEBUG] Cajas visibles después del filtro: ${cajasVisibles.length}`);
 }
-
 // 2. Función para cargar y relacionar todos los datos necesarios
 async function cargarYRelacionarDatos() {
   // Cargar clientes
@@ -3050,14 +3054,7 @@ function filtrarPorArticulo(articulo) {
 
 
 
-// Función para obtener los filtros actuales del UI
-function obtenerFiltrosActuales() {
-  return {
-    rack: document.getElementById('rack-filter').value,
-    cliente: document.getElementById('cliente-filter').value || null,
-    articulo: document.getElementById('articulo-filter').value || null,
-  };
-}
+
 
 // Función para obtener el nombre del cliente por su código
 function obtenerNombreCliente(coddiv) {
@@ -3343,46 +3340,43 @@ function convertirSelectoresABuscables() {
         const event = new Event('change');
         select.dispatchEvent(event);
       });
-      
+
       dropdown.appendChild(allOption);
-      
+
       // Opciones filtradas
       for (let i = 1; i < select.options.length; i++) {
         const option = select.options[i];
-        const optionText = option.textContent.toLowerCase();
-        
-        if (optionText.includes(searchText)) {
+        if (!searchText || option.textContent.toLowerCase().includes(searchText)) {
           const optionElement = document.createElement('div');
           optionElement.className = 'searchable-select-option';
           optionElement.textContent = option.textContent;
-          optionElement.dataset.value = option.value;
           optionElement.style.cssText = `
             padding: 8px;
             cursor: pointer;
             border-bottom: 1px solid #eee;
           `;
-          
+
           optionElement.addEventListener('mouseenter', () => {
             optionElement.style.backgroundColor = '#f1f1f1';
           });
-          
+
           optionElement.addEventListener('mouseleave', () => {
             optionElement.style.backgroundColor = '';
           });
-          
+
           optionElement.addEventListener('click', () => {
             inputElement.value = option.textContent;
             select.value = option.value;
             dropdown.style.display = 'none';
-            
+
             const event = new Event('change');
             select.dispatchEvent(event);
           });
-          
+
           dropdown.appendChild(optionElement);
         }
       }
-      
+
       // Mensaje si no hay resultados
       if (dropdown.children.length === 1 && searchText) {
         const noResults = document.createElement('div');
@@ -3529,7 +3523,78 @@ function actualizarSelector(idSelector, opciones = [], textoDefault, valorActual
 }
 
 
+// Variables globales para cache
+let ubicacionesFiltradas = [];
+let filtrosActivos = {
+  rack: 'all',
+  cliente: null,
+  articulo: null
+};
 
+// Función principal para aplicar filtros desde la API
+async function aplicarFiltrosDesdeAPI() {
+  const { rack, cliente, articulo } = filtrosActivos;
+  
+  try {
+    // Mostrar indicador de carga
+    const cargador = crearIndicadorCarga();
+    
+    // Si hay filtros de cliente/artículo, usar la API
+    if (cliente || articulo) {
+      console.log(`[DEBUG] Aplicando filtros: cliente=${cliente}, articulo=${articulo}`);
+      
+      // Obtener ubicaciones filtradas desde la API
+      ubicacionesFiltradas = await obtenerUbicacionesPorFiltro(cliente, articulo);
+      
+      console.log(`[DEBUG] Ubicaciones encontradas: ${ubicacionesFiltradas.length}`);
+      
+      // Aplicar filtros visuales
+      aplicarFiltrosVisuales(ubicacionesFiltradas, rack);
+      
+    } else {
+      // Sin filtros específicos, mostrar todas las cajas
+      ubicacionesFiltradas = initialData.filter(u => u.stock === 1);
+      aplicarFiltrosVisuales(ubicacionesFiltradas, rack);
+    }
+    
+    // Actualizar estadísticas
+    actualizarEstadisticasFiltradas();
+    
+  } catch (error) {
+    console.error('[ERROR] Error al aplicar filtros:', error);
+    mostrarError('Error al aplicar filtros. Intente nuevamente.');
+  } finally {
+    eliminarIndicadorCarga();
+  }
+}
+
+// Función para aplicar filtros visuales a las cajas 3D
+function aplicarFiltrosVisuales(ubicacionesFiltradas, rackFiltro = 'all') {
+  const idsVisibles = new Set(ubicacionesFiltradas.map(u => u.id));
+  
+  boxes.forEach(caja => {
+    const userData = caja.userData;
+    let visible = false;
+    
+    // Verificar si la caja está en los resultados filtrados
+    if (idsVisibles.has(userData.id)) {
+      // Aplicar filtro de rack adicional
+      if (rackFiltro === 'all' || userData.rack === rackFiltro) {
+        visible = true;
+      }
+    }
+    
+    caja.visible = visible;
+  });
+  
+  // Actualizar visibilidad de racks
+  actualizarVisibilidadRacks();
+  needsRender = true;
+  
+  // Log para debug
+  const cajasVisibles = boxes.filter(caja => caja.visible);
+  console.log(`[DEBUG] Cajas visibles: ${cajasVisibles.length} de ${boxes.length} total`);
+}
 
 
 // Función para aplicar los filtros
@@ -3537,10 +3602,11 @@ function aplicarFiltros() {
   const filtros = obtenerFiltrosActuales();
   filtrarCajas(filtros);
   actualizarEstadisticasFiltradas(filtros);
+   aplicarFiltrosDesdeAPI();
+
 }
 
 
-// Función modificada para setup
 async function setupRackFilterUI() {
   const selectRack = document.getElementById('rack-filter');
   const focusBtn = document.getElementById('focus-rack');
@@ -3548,74 +3614,43 @@ async function setupRackFilterUI() {
   const selectArticulo = document.getElementById('articulo-filter');
   const resetBtn = document.getElementById('reset-filters');
 
-  // Cargar opciones iniciales desde API
-  await cargarSelectoresDesdeAPI();
+  // Cargar selectores iniciales
+  await cargarSelectoresIniciales();
   
-  // Convertir selectores a buscables (solo una vez)
+  // Convertir a buscables (solo si no existen)
   if (!document.getElementById('cliente-filter-search')) {
     convertirSelectoresABuscables();
   }
 
-  // Evento para cambio de rack
-  selectRack.addEventListener('change', async () => {
-    selectCliente.value = '';
-    selectArticulo.value = '';
-    
-    // Limpiar inputs de búsqueda
-    const clienteInput = document.getElementById('cliente-filter-search');
-    const articuloInput = document.getElementById('articulo-filter-search');
-    if (clienteInput) clienteInput.value = '';
-    if (articuloInput) articuloInput.value = '';
-    
-    await actualizarSelectores();
-    aplicarFiltros();
-    
-    if (selectRack.value !== 'all') {
-      enfocarRack(selectRack.value);
-    }
-  });
-  
-  // Evento para cambio de cliente
-  selectCliente.addEventListener('change', async () => {
-    selectArticulo.value = '';
-    const articuloInput = document.getElementById('articulo-filter-search');
-    if (articuloInput) articuloInput.value = '';
-    
-    // Cargar artículos si hay un cliente seleccionado
-    if (selectCliente.value) {
-      const coddiv = selectCliente.value;
-      await cargarArticulosDeCliente(coddiv);
-    }
-    
-    await actualizarSelectores();
-    aplicarFiltros();
-  });
-  
-  // Evento para cambio de artículo
-  selectArticulo.addEventListener('change', () => {
-    aplicarFiltros();
-  });
+  // Event listeners optimizados
+  selectRack.addEventListener('change', manejarCambioRack);
+  selectCliente.addEventListener('change', manejarCambioCliente);
+  selectArticulo.addEventListener('change', manejarCambioArticulo);
   
   // Botón de enfoque
-  focusBtn.addEventListener('click', () => enfocarRack(selectRack.value));
+  if (focusBtn) {
+    focusBtn.addEventListener('click', () => {
+      if (filtrosActivos.rack !== 'all') {
+        enfocarRack(filtrosActivos.rack);
+      }
+    });
+  }
   
   // Botón de reset
-  resetBtn.addEventListener('click', async () => {
-    selectRack.value = 'all';
-    selectCliente.value = '';
-    selectArticulo.value = '';
-    
-    // Limpiar campos de búsqueda
-    const inputs = ['cliente-filter-search', 'articulo-filter-search'];
-    inputs.forEach(inputId => {
-      const input = document.getElementById(inputId);
-      if (input) input.value = '';
-    });
-    
-    await actualizarSelectores();
-    aplicarFiltros();
-  });
+  if (resetBtn) {
+    resetBtn.addEventListener('click', resetearFiltros);
+  }
+  
+  console.log('[DEBUG] Setup de filtros completado');
 }
+
+// Función auxiliar para obtener filtros actuales (compatibilidad)
+function obtenerFiltrosActuales() {
+  return { ...filtrosActivos };
+}
+
+
+
 function cargarOpcionesFiltros() {
     const clientes = new Set();
     const articulos = new Set();
@@ -3665,8 +3700,6 @@ function actualizarEstadisticasFiltradas(filtros) {
 }
 
 
-
-  // Función para calcular y mostrar el porcentaje de ocupación por rack
 function calcularOcupacionRacks(rackEspecifico = 'all') {
     // Obtener todos los racks existentes en la escena
     const racks = scene.children.filter(obj => 
@@ -3682,35 +3715,13 @@ function calcularOcupacionRacks(rackEspecifico = 'all') {
     // Objeto para almacenar estadísticas por rack
     const estadisticasRacks = {};
     
-    // Inicializar estadísticas para cada rack
+    // Inicializar estadísticas para cada rack basándose en las cajas existentes
     racks.forEach(rack => {
         const letraRack = rack.userData.letra;
-
-        
-        const numSecciones = rack.userData.numeroSecciones || rack.userData.secciones;
-        const dobleCara = rack.userData.dobleCara;
-        const niveles = 8; // Según el código, siempre son 8 niveles
-        
-        // Calcular capacidad total del rack
-        // Para cada nivel, obtener la cantidad de palets por sección
-        let capacidadTotal = 0;
-        
-        for (let nivel = 0; nivel < niveles; nivel++) {
-            // Determinar palets por sección según nivel
-            const paletsPorSeccion = nivel < 2 ? 
-                rack.userData.paletsPorNivel['0-1'] : 
-                rack.userData.paletsPorNivel['2+'];
-            
-            // Si es doble cara, multiplicar por 2 las secciones (cara A y B)
-            const caras = dobleCara ? 2 : 1;
-            
-            // Sumar a la capacidad total
-            capacidadTotal += numSecciones * paletsPorSeccion * caras;
-        }
         
         // Inicializar estadísticas para este rack
         estadisticasRacks[letraRack] = {
-            capacidadTotal: capacidadTotal,
+            capacidadTotal: 0, // Se calculará basándose en cajas existentes
             ocupados: 0,
             disponibles: 0,
             sinDisponibilidad: 0,
@@ -3718,32 +3729,87 @@ function calcularOcupacionRacks(rackEspecifico = 'all') {
             ocupacionTotal: 0,
             porcentajeEspeciales: 0,
             porcentajeDisponibles: 0,
-            porcentajeSinDisponibilidad: 0
+            porcentajeSinDisponibilidad: 0,
+            posicionesUnicas: new Set() // Para contar posiciones únicas
         };
     });
     
-    // Contar cajas existentes por rack
+    // Contar cajas existentes por rack y determinar capacidad basándose en ellas
     const cajas = scene.children.filter(obj => 
         obj.geometry instanceof THREE.BoxGeometry && 
         obj.userData?.id?.match(/^[A-Z]\d{2}[A-Z]\d{2}$/)
     );
     
+    // Primero, contar todas las posiciones únicas por rack (ocupadas y vacías)
     cajas.forEach(caja => {
         const letraRack = caja.userData.id.charAt(0);
         
         if (estadisticasRacks[letraRack]) {
-            estadisticasRacks[letraRack].ocupados++;
+            // Agregar la posición única al set
+            estadisticasRacks[letraRack].posicionesUnicas.add(caja.userData.id);
+        }
+    });
+    
+    // Ahora buscar todas las posiciones posibles basándose en el patrón de IDs existentes
+    Object.keys(estadisticasRacks).forEach(letraRack => {
+        const cajasDelRack = cajas.filter(caja => caja.userData.id.charAt(0) === letraRack);
+        
+        if (cajasDelRack.length > 0) {
+            // Analizar el patrón de IDs para determinar la capacidad total
+            const secciones = new Set();
+            const niveles = new Set();
+            const caras = new Set();
+            const posiciones = new Set();
             
-            // Contabilizar por estado
-            if (caja.userData.estado === "sin disponibilidad") {
-                estadisticasRacks[letraRack].sinDisponibilidad++;
-            } else if (caja.userData.estado === "disponible") {
-                estadisticasRacks[letraRack].disponibles++;
-            }
+            cajasDelRack.forEach(caja => {
+                const id = caja.userData.id;
+                // Formato: L##A##
+                const seccion = id.substring(1, 3); // ##
+                const cara = id.charAt(3); // A
+                const posicion = id.substring(4, 6); // ##
+                
+                secciones.add(seccion);
+                niveles.add(posicion);
+                caras.add(cara);
+                posiciones.add(posicion);
+            });
             
-            // Contabilizar especiales (PU01P001)
-            if (caja.userData.cod_area === "PU01P001") {
-                estadisticasRacks[letraRack].especiales++;
+            // Calcular capacidad total basándose en los patrones encontrados
+            const numSecciones = secciones.size;
+            const numNiveles = niveles.size;
+            const numCaras = caras.size;
+            const numPosiciones = posiciones.size;
+            
+            // La capacidad total sería el producto de todas las dimensiones
+            const capacidadCalculada = numSecciones * numCaras * numNiveles;
+            
+            // Usar el máximo entre la capacidad calculada y el número de posiciones únicas encontradas
+            estadisticasRacks[letraRack].capacidadTotal = Math.max(capacidadCalculada, estadisticasRacks[letraRack].posicionesUnicas.size);
+            
+            console.log(`Rack ${letraRack}: Secciones=${numSecciones}, Caras=${numCaras}, Niveles=${numNiveles}, Capacidad=${estadisticasRacks[letraRack].capacidadTotal}`);
+        }
+    });
+    
+    // Contar cajas ocupadas por rack
+    cajas.forEach(caja => {
+        const letraRack = caja.userData.id.charAt(0);
+        
+        if (estadisticasRacks[letraRack]) {
+            // Solo contar si la caja está realmente ocupada (no es solo una posición vacía)
+            if (caja.visible && caja.userData.estado !== 'vacio') {
+                estadisticasRacks[letraRack].ocupados++;
+                
+                // Contabilizar por estado
+                if (caja.userData.estado === "sin disponibilidad") {
+                    estadisticasRacks[letraRack].sinDisponibilidad++;
+                } else if (caja.userData.estado === "disponible") {
+                    estadisticasRacks[letraRack].disponibles++;
+                }
+                
+                // Contabilizar especiales (PU01P001)
+                if (caja.userData.cod_area === "PU01P001") {
+                    estadisticasRacks[letraRack].especiales++;
+                }
             }
         }
     });
@@ -3751,14 +3817,28 @@ function calcularOcupacionRacks(rackEspecifico = 'all') {
     // Calcular porcentajes y espacios vacíos
     Object.keys(estadisticasRacks).forEach(letraRack => {
         const stats = estadisticasRacks[letraRack];
-        stats.vacantes = stats.capacidadTotal - stats.ocupados;
-        stats.ocupacionTotal = (stats.ocupados / stats.capacidadTotal) * 100;
-        stats.porcentajeEspeciales = (stats.especiales / stats.capacidadTotal) * 100;
-        stats.porcentajeDisponibles = (stats.disponibles / stats.capacidadTotal) * 100;
-        stats.porcentajeSinDisponibilidad = (stats.sinDisponibilidad / stats.capacidadTotal) * 100;
-        stats.porcentajeVacantes = (stats.vacantes / stats.capacidadTotal) * 100;
+        
+        // Validar que ocupados no sea mayor que capacidad total
+        if (stats.ocupados > stats.capacidadTotal) {
+            console.warn(`ADVERTENCIA: Rack ${letraRack} tiene más cajas ocupadas (${stats.ocupados}) que su capacidad total (${stats.capacidadTotal}). Ajustando capacidad.`);
+            stats.capacidadTotal = stats.ocupados; // Ajustar capacidad al mínimo necesario
+        }
+        
+        stats.vacantes = Math.max(0, stats.capacidadTotal - stats.ocupados);
+        stats.ocupacionTotal = stats.capacidadTotal > 0 ? (stats.ocupados / stats.capacidadTotal) * 100 : 0;
+        stats.porcentajeEspeciales = stats.capacidadTotal > 0 ? (stats.especiales / stats.capacidadTotal) * 100 : 0;
+        stats.porcentajeDisponibles = stats.capacidadTotal > 0 ? (stats.disponibles / stats.capacidadTotal) * 100 : 0;
+        stats.porcentajeSinDisponibilidad = stats.capacidadTotal > 0 ? (stats.sinDisponibilidad / stats.capacidadTotal) * 100 : 0;
+        stats.porcentajeVacantes = stats.capacidadTotal > 0 ? (stats.vacantes / stats.capacidadTotal) * 100 : 0;
+        
+        // Limpiar el Set que ya no necesitamos
+        delete stats.posicionesUnicas;
+        
+        // Log para debugging
+        console.log(`Rack ${letraRack}: Capacidad=${stats.capacidadTotal}, Ocupados=${stats.ocupados}, Vacantes=${stats.vacantes}, Ocupación=${stats.ocupacionTotal.toFixed(2)}%`);
     });
-      // Verificar si el panel está oculto y mostrarlo si es necesario
+    
+    // Verificar si el panel está oculto y mostrarlo si es necesario
     const panelExistente = document.getElementById('panel-estadisticas');
     if (panelExistente && panelExistente.style.display === 'none') {
         panelExistente.style.display = 'block';
@@ -3770,6 +3850,138 @@ function calcularOcupacionRacks(rackEspecifico = 'all') {
     return estadisticasRacks;
 }
 
+// Función alternativa para calcular capacidad basándose en configuración conocida del rack
+function calcularCapacidadRackPorConfiguracion(rack) {
+    try {
+        const numSecciones = rack.userData.numeroSecciones || rack.userData.secciones || 10; // Valor por defecto
+        const dobleCara = rack.userData.dobleCara !== undefined ? rack.userData.dobleCara : true;
+        const niveles = 8; // Según tu código, siempre son 8 niveles
+        
+        let capacidadTotal = 0;
+        
+        // Si tienes la configuración de palets por nivel
+        if (rack.userData.paletsPorNivel) {
+            for (let nivel = 0; nivel < niveles; nivel++) {
+                const paletsPorSeccion = nivel < 2 ? 
+                    rack.userData.paletsPorNivel['0-1'] || 1 : 
+                    rack.userData.paletsPorNivel['2+'] || 1;
+                
+                const caras = dobleCara ? 2 : 1;
+                capacidadTotal += numSecciones * paletsPorSeccion * caras;
+            }
+        } else {
+            // Cálculo simplificado si no hay configuración detallada
+            const caras = dobleCara ? 2 : 1;
+            capacidadTotal = numSecciones * caras * niveles;
+        }
+        
+        return capacidadTotal;
+    } catch (error) {
+        console.error("Error calculando capacidad del rack:", error);
+        return 0;
+    }
+}
+
+// Función mejorada que usa ambos métodos de cálculo
+function calcularOcupacionRacksMejorado(rackEspecifico = 'all') {
+    const racks = scene.children.filter(obj => 
+            obj.userData?.tipoObjeto === 'rack' &&
+            (rackEspecifico === 'all' || obj.userData.letra === rackEspecifico)
+        );
+        
+    if (racks.length === 0) {
+        console.error("No se encontraron racks en la escena");
+        return;
+    }
+    
+    const estadisticasRacks = {};
+    
+    // Inicializar estadísticas usando ambos métodos de cálculo
+    racks.forEach(rack => {
+        const letraRack = rack.userData.letra;
+        
+        // Método 1: Calcular por configuración del rack
+        const capacidadPorConfiguracion = calcularCapacidadRackPorConfiguracion(rack);
+        
+        estadisticasRacks[letraRack] = {
+            capacidadTotal: capacidadPorConfiguracion,
+            ocupados: 0,
+            disponibles: 0,
+            sinDisponibilidad: 0,
+            especiales: 0,
+            ocupacionTotal: 0,
+            porcentajeEspeciales: 0,
+            porcentajeDisponibles: 0,
+            porcentajeSinDisponibilidad: 0
+        };
+    });
+    
+    // Contar cajas ocupadas
+    const cajas = scene.children.filter(obj => 
+        obj.geometry instanceof THREE.BoxGeometry && 
+        obj.userData?.id?.match(/^[A-Z]\d{2}[A-Z]\d{2}$/)
+    );
+    
+    // Método 2: Verificar capacidad basándose en cajas existentes
+    const cajasCountPorRack = {};
+    cajas.forEach(caja => {
+        const letraRack = caja.userData.id.charAt(0);
+        if (!cajasCountPorRack[letraRack]) {
+            cajasCountPorRack[letraRack] = { total: 0, ocupadas: 0 };
+        }
+        cajasCountPorRack[letraRack].total++;
+        
+        if (caja.visible && caja.userData.estado !== 'vacio') {
+            cajasCountPorRack[letraRack].ocupadas++;
+        }
+    });
+    
+    // Ajustar capacidades si es necesario
+    Object.keys(estadisticasRacks).forEach(letraRack => {
+        const stats = estadisticasRacks[letraRack];
+        const cajasInfo = cajasCountPorRack[letraRack];
+        
+        if (cajasInfo && cajasInfo.total > stats.capacidadTotal) {
+            console.log(`Ajustando capacidad del Rack ${letraRack} de ${stats.capacidadTotal} a ${cajasInfo.total} basándose en cajas existentes`);
+            stats.capacidadTotal = cajasInfo.total;
+        }
+        
+        if (cajasInfo) {
+            stats.ocupados = cajasInfo.ocupadas;
+        }
+    });
+    
+    // Contar por estado
+    cajas.forEach(caja => {
+        const letraRack = caja.userData.id.charAt(0);
+        
+        if (estadisticasRacks[letraRack] && caja.visible && caja.userData.estado !== 'vacio') {
+            if (caja.userData.estado === "sin disponibilidad") {
+                estadisticasRacks[letraRack].sinDisponibilidad++;
+            } else if (caja.userData.estado === "disponible") {
+                estadisticasRacks[letraRack].disponibles++;
+            }
+            
+            if (caja.userData.cod_area === "PU01P001") {
+                estadisticasRacks[letraRack].especiales++;
+            }
+        }
+    });
+    
+    // Calcular porcentajes finales
+    Object.keys(estadisticasRacks).forEach(letraRack => {
+        const stats = estadisticasRacks[letraRack];
+        stats.vacantes = Math.max(0, stats.capacidadTotal - stats.ocupados);
+        stats.ocupacionTotal = stats.capacidadTotal > 0 ? (stats.ocupados / stats.capacidadTotal) * 100 : 0;
+        stats.porcentajeEspeciales = stats.capacidadTotal > 0 ? (stats.especiales / stats.capacidadTotal) * 100 : 0;
+        stats.porcentajeDisponibles = stats.capacidadTotal > 0 ? (stats.disponibles / stats.capacidadTotal) * 100 : 0;
+        stats.porcentajeSinDisponibilidad = stats.capacidadTotal > 0 ? (stats.sinDisponibilidad / stats.capacidadTotal) * 100 : 0;
+        stats.porcentajeVacantes = stats.capacidadTotal > 0 ? (stats.vacantes / stats.capacidadTotal) * 100 : 0;
+    });
+    
+    mostrarEstadisticasRacks(estadisticasRacks, rackEspecifico);
+    return estadisticasRacks;
+}
 // Función para mostrar las estadísticas en una ventana o panel
 function mostrarEstadisticasRacks(estadisticasRacks,  rackEspecifico = 'all') {
      // Crear contenedor para el panel si no existe
