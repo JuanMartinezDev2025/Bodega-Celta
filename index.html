@@ -2022,29 +2022,29 @@ function ejemploGeneracionIDs() {
     console.log(`   Nivel B: ${idsC03.slice(6, 8).join(', ')}`);
     console.log(`   Nivel C: ${idsC03.slice(8, 10).join(', ')}`);
 }
-// 2. FUNCIÓN ACTUALIZADA: Generar ID desde posición física (LÓGICA CONSECUTIVA)
 function generarIDDesdePosicion(rack, seccion, nivelFisico, paletFisico, lado) {
     const seccionStr = String(seccion + 1).padStart(2, '0');
-    
+    let idBase;
     if (nivelFisico === 0) {
-        // Altura física 0 → A01, A02, A03
         const paletLogico = paletFisico + 1;
         const paletStr = String(paletLogico).padStart(2, '0');
-        return `${rack}${seccionStr}A${paletStr}`;
-        
+        idBase = `${rack}${seccionStr}A${paletStr}`;
     } else if (nivelFisico === 1) {
-        // Altura física 1 → A04, A05, A06
         const paletLogico = paletFisico + 4;
         const paletStr = String(paletLogico).padStart(2, '0');
-        return `${rack}${seccionStr}A${paletStr}`;
-        
+        idBase = `${rack}${seccionStr}A${paletStr}`;
     } else {
-        // Alturas físicas 2-7 → B01-B02, C01-C02, etc.
-        const nivelLetra = String.fromCharCode(65 + nivelFisico - 1); // 2→B, 3→C, etc.
+        const nivelLetra = String.fromCharCode(65 + nivelFisico - 1);
         const paletLogico = paletFisico + 1;
         const paletStr = String(paletLogico).padStart(2, '0');
-        return `${rack}${seccionStr}${nivelLetra}${paletStr}`;
+        idBase = `${rack}${seccionStr}${nivelLetra}${paletStr}`;
     }
+    // Añadir el lado al ID para racks doble cara
+    const rackInfo = MAPA_RECORRIDO_EXTENDIDO.racks[rack];
+    if (rackInfo && rackInfo.dobleCara) {
+        return `${idBase}${lado}`;
+    }
+    return idBase;
 }
 
 // 4. FUNCIÓN MODIFICADA: inicializarRacks (REEMPLAZA LA EXISTENTE)
@@ -2402,57 +2402,80 @@ if (typeof window !== 'undefined') {
 }
 
 // Función unificada para crear etiquetas de cajas/palets
-function crearEtiquetaCaja(caja) {
+// Función unificada para crear etiquetas de cajas/palets
+function crearEtiquetaCaja(caja, esPaletVacio = false) {
     const userData = caja.userData;
     const id = userData.id;
     if (!id) return;
 
-    // Solo etiquetas para cajas con contenido
-    // Canvas para etiqueta normal
+    // Canvas optimizado para etiquetas
     const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 128;
+    canvas.width = 128; // Reducido para optimización
+    canvas.height = 64;  // Reducido para optimización
     const context = canvas.getContext('2d');
-    
-    // Fondo blanco con borde
-    context.fillStyle = '#FFFFFF';
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    context.strokeStyle = '#000000';
-    context.lineWidth = 8;
-    context.strokeRect(4, 4, canvas.width - 8, canvas.height - 8);
-    
-    // Texto del ID
-    context.fillStyle = '#000000';
-    context.font = 'bold 36px Arial';
-    context.textAlign = 'center';
-    context.textBaseline = 'middle';
-    context.fillText(id, canvas.width / 2, canvas.height / 2);
-    
-    // Crear textura
+
+    if (esPaletVacio) {
+        // Etiqueta simple para palets vacíos - fondo verde claro
+        context.fillStyle = '#E8F5E8';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.strokeStyle = '#4CAF50';
+        context.lineWidth = 3;
+        context.strokeRect(2, 2, canvas.width - 4, canvas.height - 4);
+
+        // Texto "DISPONIBLE"
+        context.fillStyle = '#2E7D32';
+        context.font = 'bold 12px Arial';
+        context.textAlign = 'center';
+        context.textBaseline = 'top';
+        context.fillText('DISPONIBLE', canvas.width / 2, 8);
+
+        // ID más pequeño
+        context.font = '10px Arial';
+        context.fillText(id, canvas.width / 2, 35);
+    } else {
+        // Etiqueta normal para cajas con contenido
+        context.fillStyle = '#FFFFFF';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.strokeStyle = '#000000';
+        context.lineWidth = 3;
+        context.strokeRect(2, 2, canvas.width - 4, canvas.height - 4);
+
+        // Texto del ID
+        context.fillStyle = '#000000';
+        context.font = 'bold 16px Arial';
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.fillText(id, canvas.width / 2, canvas.height / 2);
+    }
+
+    // Crear textura optimizada
     const texture = new THREE.CanvasTexture(canvas);
     texture.minFilter = THREE.LinearFilter;
-    
-    // Material para la etiqueta
+    texture.generateMipmaps = false; // Optimización
+
+    // Material optimizado
     const material = new THREE.MeshBasicMaterial({
         map: texture,
         transparent: true,
-        side: THREE.DoubleSide
+        side: THREE.FrontSide, // Solo cara frontal para evitar efecto espejo
+        alphaTest: 0.1 // Optimización para transparencia
     });
-    
-    // Geometría de la etiqueta
+
+    // Geometría más pequeña para palets vacíos
+    const tamaño = esPaletVacio ? 0.6 : 0.9;
     const geometria = new THREE.PlaneGeometry(
-        config.anchoCaja * 0.9,
-        config.anchoCaja * 0.7
+        config.anchoCaja * tamaño,
+        config.anchoCaja * (tamaño * 0.7)
     );
-    
-    // Crear grupo para las 4 etiquetas
+
+    // Crear grupo para las etiquetas
     const grupo = new THREE.Group();
-    
+
     // Posiciones relativas para las etiquetas
     const offset = 0.01;
     const halfAncho = config.anchoCaja / 2 + offset;
     const halfProf = config.profundidadCaja / 2 + offset;
-    
+
     // Función para crear una etiqueta en una posición
     const crearEtiqueta = (rotY, posX, posZ) => {
         const etiqueta = new THREE.Mesh(geometria, material);
@@ -2460,13 +2483,35 @@ function crearEtiquetaCaja(caja) {
         etiqueta.position.set(posX, 0, posZ);
         return etiqueta;
     };
-    
-    // Añadir etiquetas a los 4 lados
-    grupo.add(crearEtiqueta(0, 0, halfProf)); // Frente
-    grupo.add(crearEtiqueta(Math.PI, 0, -halfProf)); // Atrás
-    grupo.add(crearEtiqueta(Math.PI/2, halfAncho, 0)); // Derecha
-    grupo.add(crearEtiqueta(-Math.PI/2, -halfAncho, 0)); // Izquierda
-    
+
+    // Para palets vacíos, orientar etiqueta hacia el pasillo según la cara
+    if (esPaletVacio) {
+        const lado = caja.userData.lado;
+        const extra = 0.08;
+        
+        // Determinar orientación correcta según la cara del rack
+        let rotY, posZ;
+        
+        if (lado === "A") {
+            // Cara A: etiqueta mira hacia el pasillo frontal
+            rotY = Math.PI; // Rotación para que el texto se lea correctamente desde el pasillo
+            posZ = -halfProf - extra;
+        } else {
+            // Cara B: etiqueta mira hacia el pasillo trasero  
+            rotY = 0; // Sin rotación para que el texto se lea correctamente desde el pasillo
+            posZ = halfProf + extra;
+        }
+        
+        const etiqueta = crearEtiqueta(rotY, 0, posZ);
+        grupo.add(etiqueta);
+    } else {
+        // Añadir etiquetas a los 4 lados para cajas con contenido
+        grupo.add(crearEtiqueta(0, 0, halfProf)); // Frente
+        grupo.add(crearEtiqueta(Math.PI, 0, -halfProf)); // Atrás
+        grupo.add(crearEtiqueta(Math.PI/2, halfAncho, 0)); // Derecha
+        grupo.add(crearEtiqueta(-Math.PI/2, -halfAncho, 0)); // Izquierda
+    }
+
     caja.add(grupo);
     return grupo;
 }
@@ -2481,18 +2526,19 @@ const COLORES = {
 
 // Función modificada para crear cajas y etiquetas para palets vacíos
 // Función modificada para crear cajas y etiquetas para palets vacíos
+// Función modificada para crear cajas y palets vacíos
 function crearCajasDesdeDatos(dataArray) {
     const sharedGeometry = ResourcePool.getBoxGeometry();
     const cajasExistentes = new Set();
     
-    console.log("🔄 Iniciando creación de cajas con sistema de alturas corregido...");
+    console.log("🔄 Iniciando creación de cajas con palets vacíos...");
     
-    // 1. Primero crear todas las cajas con contenido
+    // 1. Crear todas las cajas con contenido
     dataArray.forEach((item, index) => {
         const { rack, columna, nivel, palet, lado } = obtenerParametrosPosicion(item);
         const { x, y, z } = obtenerPosicionDesdeDatos(item);
         
-        // Generar ID si no existe (usando función corregida)
+        // Generar ID si no existe
         const id = item.id || generarIDDesdePosicion(rack, columna, nivel, palet, lado);
         
         // Validar ID generado
@@ -2505,20 +2551,13 @@ function crearCajasDesdeDatos(dataArray) {
         // Determinar color basado en área y estado
         let color;
         
-        // Prioridad 1: Área PU (ROJO)
         if (item.area === "PU") {
             color = COLORES.AREA_PU;
-        }
-        // Prioridad 2: Código especial PU01P001
-        else if (item.cod_area === "PU01P001") {
+        } else if (item.cod_area === "PU01P001") {
             color = COLORES.COD_AREA_ESPECIAL;
-        }
-        // Prioridad 3: Estado sin disponibilidad
-        else if (item.estado === "sin disponibilidad") {
+        } else if (item.estado === "sin disponibilidad") {
             color = COLORES.SIN_DISPONIBILIDAD;
-        }
-        // Prioridad 4: Color personalizado o por defecto
-        else {
+        } else {
             color = item.color || COLORES.DEFAULT;
         }
         
@@ -2537,23 +2576,151 @@ function crearCajasDesdeDatos(dataArray) {
             articulos: item.articulos || [],
             estado: item.estado || "disponible",
             cod_area: item.cod_area || "",
-            area: item.area || "", // Asegurar que se guarde el área
+            area: item.area || "",
             esPaletVacio: false
         };
 
+        // Crear etiqueta normal para caja con contenido
         crearEtiquetaCaja(caja, false);
         scene.add(caja);
         boxes.push(caja);
         
         if (config.debug) {
-            console.log(`✅ Caja creada: ${id} en altura física ${nivel}, palet físico ${palet}, área: ${item.area}`);
+            console.log(`✅ Caja creada: ${id} en altura física ${nivel}`);
         }
     });
     
-    console.log(`✅ Sistema de IDs actualizado completado. Total de posiciones: ${boxes.length}`);
+    // 2. Crear palets vacíos para posiciones disponibles
+    crearPaletsVacios(cajasExistentes);
+    
+    console.log(`✅ Sistema completado. Cajas: ${boxes.length}, Palets vacíos creados`);
 }
 
 
+function crearPaletsVacios(cajasExistentes) {
+    // Eliminar palets vacíos existentes antes de crear nuevos
+    scene.children
+        .filter(obj => obj.userData && obj.userData.esPaletVacio)
+        .forEach(obj => {
+            scene.remove(obj);
+            const idx = boxes.indexOf(obj);
+            if (idx !== -1) boxes.splice(idx, 1);
+        });
+
+    const sharedGeometry = ResourcePool.getBoxGeometry();
+    const materialVacio = ResourcePool.getMaterial(COLORES.DISPONIBLE);
+    let paletsVaciosCreados = 0;
+
+    const racksArray = Object.keys(MAPA_RECORRIDO_EXTENDIDO.racks);
+
+    racksArray.forEach((rackLetra, rackIdx) => {
+        const rackInfo = MAPA_RECORRIDO_EXTENDIDO.racks[rackLetra];
+        for (let seccion = 1; seccion <= rackInfo.seccionesReales; seccion++) {
+            // --- Cara B (propia del rack) ---
+            const idsSeccion = MAPA_RECORRIDO_EXTENDIDO.generarIDsPorSeccion(rackLetra, seccion);
+            idsSeccion.forEach(id => {
+                if (!cajasExistentes.has(id)) {
+                    const infoID = MAPA_RECORRIDO_EXTENDIDO.parsearID(id);
+                    if (!infoID) return;
+                    const posFisica = MAPA_RECORRIDO_EXTENDIDO.calcularPosicionFisica(infoID.rack, infoID.seccion);
+                    const posDatos = obtenerPosicionDesdeDatos({
+                        id: id,
+                        rack: posFisica.rack,
+                        columna: posFisica.seccion,
+                        nivel: infoID.nivel,
+                        palet: infoID.paletFisico,
+                        lado: posFisica.lado
+                    });
+
+                    const rackObj = scene.children.find(obj =>
+                        obj.userData?.tipoObjeto === 'rack' &&
+                        obj.userData?.letra === posFisica.rack
+                    );
+                    if (!rackObj) return;
+
+                    const paletVacio = new THREE.Mesh(sharedGeometry, materialVacio);
+                    paletVacio.position.set(posDatos.x, posDatos.y, posDatos.z);
+                    paletVacio.material.opacity = 0.3;
+                    paletVacio.material.transparent = true;
+
+                    paletVacio.userData = {
+                        id: id,
+                        rack: posFisica.rack,
+                        nivel: infoID.nivel,
+                        seccion: posFisica.seccion,
+                        palet: infoID.paletFisico,
+                        lado: posFisica.lado,
+                        contenido: "",
+                        estado: "disponible",
+                        esPaletVacio: true
+                    };
+
+                    crearEtiquetaCaja(paletVacio, true);
+                    scene.add(paletVacio);
+                    boxes.push(paletVacio);
+                    paletsVaciosCreados++;
+                }
+            });
+
+            // --- Cara A (IDs lógicos del rack anterior que caen en este rack físico) ---
+            if (rackInfo.dobleCara && rackIdx > 0) {
+                const rackAnterior = racksArray[rackIdx - 1];
+                const rackAnteriorInfo = MAPA_RECORRIDO_EXTENDIDO.racks[rackAnterior];
+                if (rackAnteriorInfo && rackAnteriorInfo.dobleCara) {
+                    // Para cada sección física de este rack, obtener el ID lógico que cae aquí en cara A
+                    const logico = MAPA_RECORRIDO_EXTENDIDO.calcularRackLogico(rackLetra, seccion, 'A');
+                    // Generar todos los IDs posibles para esa sección lógica del rack anterior
+                    const idsSeccionA = MAPA_RECORRIDO_EXTENDIDO.generarIDsPorSeccion(logico.rack, logico.seccion + 1);
+                    idsSeccionA.forEach(idA => {
+                        if (!cajasExistentes.has(idA)) {
+                            const infoID = MAPA_RECORRIDO_EXTENDIDO.parsearID(idA);
+                            if (!infoID) return;
+                            // Forzar el lado a 'A' y rack físico al actual
+                            const posDatos = obtenerPosicionDesdeDatos({
+                                id: idA,
+                                rack: rackLetra,
+                                columna: seccion - 1,
+                                nivel: infoID.nivel,
+                                palet: infoID.paletFisico,
+                                lado: 'A'
+                            });
+
+                            const rackObj = scene.children.find(obj =>
+                                obj.userData?.tipoObjeto === 'rack' &&
+                                obj.userData?.letra === rackLetra
+                            );
+                            if (!rackObj) return;
+
+                            const paletVacio = new THREE.Mesh(sharedGeometry, materialVacio);
+                            paletVacio.position.set(posDatos.x, posDatos.y, posDatos.z);
+                            paletVacio.material.opacity = 0.3;
+                            paletVacio.material.transparent = true;
+
+                            paletVacio.userData = {
+                                id: idA,
+                                rack: rackLetra,
+                                nivel: infoID.nivel,
+                                seccion: seccion - 1,
+                                palet: infoID.paletFisico,
+                                lado: 'A',
+                                contenido: "",
+                                estado: "disponible",
+                                esPaletVacio: true
+                            };
+
+                            crearEtiquetaCaja(paletVacio, true);
+                            scene.add(paletVacio);
+                            boxes.push(paletVacio);
+                            paletsVaciosCreados++;
+                        }
+                    });
+                }
+            }
+        }
+    });
+
+    console.log(`✅ ${paletsVaciosCreados} palets vacíos creados con etiquetas "DISPONIBLE"`);
+}
 function actualizarEstadoCaja(idCaja, nuevoEstado, nuevoCodArea = null, nuevaArea = null) {
     const caja = boxes.find(b => b.userData.id === idCaja);
     
@@ -2658,6 +2825,8 @@ function verificarPosicionesID(rackLetra) {
 
 function calcularPosicionPalet(rackObj, seccion, nivel, palet, lado) {
     // Esta función es similar a obtenerPosicionDesdeDatos pero para posiciones vacías
+    
+    const dobleCara = rackObj.userData.dobleCara;
     const rackData = rackObj.userData;
     const anchoSeccion = rackData.anchoSeccion;
     const anchuraRack = rackData.anchura || rackData.longitud;
