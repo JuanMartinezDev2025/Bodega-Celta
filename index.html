@@ -1129,14 +1129,15 @@ function cerrarModal() {
 
 function setupInteraccion() {
 
-   // 1. Eliminar el modeIndicator anterior si existe
+    // 1. Eliminar el modeIndicator anterior si existe
     const oldIndicator = document.querySelector('div[style*="position: fixed; bottom: 20px; right: 20px;"]');
     if (oldIndicator) oldIndicator.remove();
-    // 1. Variables para optimización
+
+    // 2. Variables para optimización
     const raycaster = new THREE.Raycaster(); // Reutilizar la misma instancia
     const mouse = new THREE.Vector2(); // Reutilizar este vector
-    
-    // Agrega esto en tu init() o setupInteraccion()
+
+    // 3. Indicador de modo
     modeIndicator = document.createElement('div');
     modeIndicator.style.position = 'fixed';
     modeIndicator.style.bottom = '20px';
@@ -1148,83 +1149,61 @@ function setupInteraccion() {
     modeIndicator.style.zIndex = '1000';
     modeIndicator.textContent = 'Modo: Órbita (Presiona F para cambiar)';
     document.body.appendChild(modeIndicator);
-    // 3. Primer Evento de clic (optimizado)
-    renderer.domElement.addEventListener('click', (event) => {
-      // Reutilizar el vector mouse
-      mouse.set(
-        (event.clientX / window.innerWidth) * 2 - 1,
-        -(event.clientY / window.innerHeight) * 2 + 1
-      );
-      
-      raycaster.setFromCamera(mouse, camera);
-      
-      // Usar un array reutilizable para las intersecciones
-      const intersects = raycaster.intersectObjects(boxes.filter(box => box.visible), true);
-      
-      // Debug de posición (opcional)
-      const gridPos = getGridPositionFromClick(event);
-      if (gridPos && debugMode) {
-        console.log(`Posición seleccionada - X: ${gridPos.x}, Z: ${gridPos.z}`);
-      }
-      
-      if (intersects.length > 0) {
-        seleccionarCaja(intersects[0].object);
-      }
-    });
 
-    // Segundo Evento de clic en cajas
+    // 4. Evento de clic ÚNICO para seleccionar solo cajas visibles
     renderer.domElement.addEventListener('click', (event) => {
-        const mouse = new THREE.Vector2(
+        mouse.set(
             (event.clientX / window.innerWidth) * 2 - 1,
             -(event.clientY / window.innerHeight) * 2 + 1
         );
-        
         raycaster.setFromCamera(mouse, camera);
-        const intersects = raycaster.intersectObjects(boxes);
-        
+
+        // Solo cajas visibles
+        const intersects = raycaster.intersectObjects(boxes.filter(box => box.visible), true);
+
         if (intersects.length > 0) {
             seleccionarCaja(intersects[0].object);
         }
     });
-    
 
-  document.addEventListener('keydown', (event) => {
-    if (!isFirstPerson) return;
-    
-    switch (event.code) {
-        case 'KeyW': moveState.forward = true; break;   // Adelante
-        case 'KeyA': moveState.left = true; break;      // Izquierda
-        case 'KeyS': moveState.backward = true; break;  // Atrás
-        case 'KeyD': moveState.right = true; break;     // Derecha
-        case 'Space': moveState.up = true; break;       // Subir (Espacio)
-        case 'ShiftLeft': moveState.down = true; break; // Bajar (Shift)
-    }
-});
+    // 5. Movimiento en modo primera persona
+    document.addEventListener('keydown', (event) => {
+        if (!isFirstPerson) return;
 
-document.addEventListener('keyup', (event) => {
-    switch (event.code) {
-        case 'KeyW': moveState.forward = false; break;
-        case 'KeyA': moveState.left = false; break;
-        case 'KeyS': moveState.backward = false; break;
-        case 'KeyD': moveState.right = false; break;
-        case 'Space': moveState.up = false; break;
-        case 'ShiftLeft': moveState.down = false; break;
-    }
-});
-    // Evento para cerrar modal
+        switch (event.code) {
+            case 'KeyW': moveState.forward = true; break;   // Adelante
+            case 'KeyA': moveState.left = true; break;      // Izquierda
+            case 'KeyS': moveState.backward = true; break;  // Atrás
+            case 'KeyD': moveState.right = true; break;     // Derecha
+            case 'Space': moveState.up = true; break;       // Subir (Espacio)
+            case 'ShiftLeft': moveState.down = true; break; // Bajar (Shift)
+        }
+    });
+
+    document.addEventListener('keyup', (event) => {
+        switch (event.code) {
+            case 'KeyW': moveState.forward = false; break;
+            case 'KeyA': moveState.left = false; break;
+            case 'KeyS': moveState.backward = false; break;
+            case 'KeyD': moveState.right = false; break;
+            case 'Space': moveState.up = false; break;
+            case 'ShiftLeft': moveState.down = false; break;
+        }
+    });
+
+    // 6. Evento para cerrar modal
     document.getElementById('close-modal').addEventListener('click', cerrarModal);
-    
-    // Cerrar al hacer clic en el overlay
+
+    // 7. Cerrar al hacer clic en el overlay
     document.getElementById('modal-overlay').addEventListener('click', cerrarModal);
-    
-    // Cerrar con tecla ESC
+
+    // 8. Cerrar con tecla ESC
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             cerrarModal();
         }
     });
 }
-
 
 //Calcular el bounding box de los racks (ancho y profundidad) para ajustar el grid
   function calcularLimitesRacks() {
