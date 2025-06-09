@@ -2626,11 +2626,12 @@ const COLORES = {
 function crearCajasDesdeDatos(dataArray) {
     const sharedGeometry = ResourcePool.getBoxGeometry();
     const cajasExistentes = new Set();
-    
+    const racksExcluidos = ["T", "P"];
+    const dataFiltrada = dataArray.filter(item => !racksExcluidos.includes(item.rack));
     console.log("🔄 Iniciando creación de cajas con palets vacíos...");
     
     // 1. Crear todas las cajas con contenido
-    dataArray.forEach((item, index) => {
+      dataFiltrada.forEach((item, index) => {
         const { rack, columna, nivel, palet, lado } = obtenerParametrosPosicion(item);
         const { x, y, z } = obtenerPosicionDesdeDatos(item);
         
