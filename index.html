@@ -604,16 +604,16 @@
   <label for="rack-filter">Filtrar por Rack:</label>
   <select id="rack-filter">
     <option value="all">Todos los racks</option>
-    <option value="A">Rack A</option>
-    <option value="B">Rack B</option>
-    <option value="C">Rack C</option>
-    <option value="D">Rack D</option>
-    <option value="E">Rack E</option>
-    <option value="F">Rack F</option>
-    <option value="G">Rack G</option>
-    <option value="H">Rack H</option>
-    <option value="I">Rack I</option>
-    <option value="J">Rack J</option>
+    <option value="A">Pasillo A</option>
+    <option value="B">Pasillo B</option>
+    <option value="C">Pasillo C</option>
+    <option value="D">Pasillo D</option>
+    <option value="E">Pasillo E</option>
+    <option value="F">Pasillo F</option>
+    <option value="G">Pasillo G</option>
+    <option value="H">Pasillo H</option>
+    <option value="I">Pasillo I</option>
+    <option value="J">Pasillo J</option>
   </select>
    <!-- Añade estos nuevos selectores -->
   <label for="cliente-filter">Cliente:</label>
@@ -657,8 +657,8 @@ const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerH
     renderer.setSize(window.innerWidth, window.innerHeight); // Tamaño del renderizador que se adapta a la pantalla
     document.body.appendChild(renderer.domElement); //Insertar canvas "lienzo/pantalla completa" en el body
   // En tu función init()
-  camera.position.set(40, 35, 40); // Posición más elevada y alejada
-  camera.lookAt(15, 5, 20); // Mirar hacia el centro del almacén
+     camera.position.set(-10, 35, 40); // O ajusta según el tamaño de tu almacén
+    camera.lookAt(15, 5, 20);
   // 3. CONTROLES Y LUCES
     // 3. CONTROLES Y LUCES
     const orbitControls = new OrbitControls(camera, renderer.domElement); // Renombramos a orbitControls
@@ -716,6 +716,9 @@ let articulosData = {};
 
 // Función para cargar artículos de un cliente desde la API
 
+
+
+// Cambio de apis
 // Función para cargar datos de clientes desde la API
 async function cargarClientesDesdeAPI() {
   try {
@@ -917,6 +920,8 @@ async function cargarDetallesCaja(cajaId) {
         throw error;
     }
 }
+
+//Fin cambio de apis
 // Función mejorada para obtener ubicaciones por filtro
 async function obtenerUbicacionesPorFiltro(cliente = null, articulo = null) {
   try {
@@ -1315,14 +1320,16 @@ function createGrid() {
     grid.position.y = -0.01;
     scene.add(grid);
 
-    // 🔹 Ajustar cámara para encuadrar el área
-    const centerX = (minX + maxX) / 2;
-    const centerZ = (minZ + maxZ) / 2;
+    const centerX = (limites.minX + limites.maxX) / 2;
+    const centerZ = (limites.minZ + limites.maxZ) / 2;
 
-    camera.position.set(centerX - 35, 50, centerZ + 55);
+    // Coloca la cámara a la DERECHA (X positivo), a una altura razonable y mirando hacia el centro
+    camera.position.set(limites.maxX + 35, 38, centerZ + 10); // Más cerca a la derecha
     camera.lookAt(centerX, 5, centerZ);
+
     orbitControls.target.set(centerX, 3, centerZ);
     orbitControls.update();
+
 }
 
 
@@ -1412,7 +1419,9 @@ const ResourcePool = {
     }
 };
 
+
 function crearRack(posicionInicial, longitud, letraRack, niveles = 8, dobleCara = true, numeroSecciones = null) {
+  
     // 1. Configuración inicial optimizada
     const posInicioX = config.primerRackX;
     const posZ = posicionInicial.z;
@@ -1433,9 +1442,10 @@ function crearRack(posicionInicial, longitud, letraRack, niveles = 8, dobleCara 
         separacion: 0.3,
         margenSeccion: 0.3,
         paletsPorSeccion: {
-            niveles0y1: 3,
-            otrosNiveles: 2
-        }
+        niveles0y1: 3,
+        nivel2: 3,      // <--- Añade esta línea
+        otrosNiveles: 2
+    }
     };
 
     // 4. Cálculo de secciones (optimizado)
@@ -1489,10 +1499,14 @@ function crearRack(posicionInicial, longitud, letraRack, niveles = 8, dobleCara 
         }
         
         // 8. Colocación de palets (optimizada)
-        const paletsPorSeccion = nivel < 2 ? 
-            configPalets.paletsPorSeccion.niveles0y1 : 
-            configPalets.paletsPorSeccion.otrosNiveles;
-        
+        let paletsPorSeccion;
+        if (nivel < 2) {
+            paletsPorSeccion = configPalets.paletsPorSeccion.niveles0y1;
+        } else if (nivel === 2) {
+            paletsPorSeccion = configPalets.paletsPorSeccion.nivel2;
+        } else {
+            paletsPorSeccion = configPalets.paletsPorSeccion.otrosNiveles;
+        }
         for (let seccion = 0; seccion < numeroSecciones; seccion++) {
             const inicioSeccion = -halfAncho + (seccion * anchoSeccion);
             const espacioNecesarioOriginal = (2 * configPalets.margenSeccion) +
@@ -1527,9 +1541,11 @@ function crearRack(posicionInicial, longitud, letraRack, niveles = 8, dobleCara 
             }
         }
     }
-    
+    if (letraRack !== 'J2') {
+        crearEtiquetaRack(rack, letraRack, anchuraRackAjustada, alturaRack, halfProf);;
+    }
     // 9. Etiqueta y metadatos (optimizado)
-    crearEtiquetaRack(rack, letraRack, anchuraRackAjustada, alturaRack, halfProf);
+    
     
     rack.userData = {
         tipoObjeto: 'rack',
@@ -1558,22 +1574,50 @@ function crearRack(posicionInicial, longitud, letraRack, niveles = 8, dobleCara 
     return rack;
 }
 
+renderer.domElement.addEventListener('click', function(event) {
+    const rect = renderer.domElement.getBoundingClientRect();
+    const mouse = new THREE.Vector2(
+        ((event.clientX - rect.left) / rect.width) * 2 - 1,
+        -((event.clientY - rect.top) / rect.height) * 2 + 1
+    );
+    const raycaster = new THREE.Raycaster();
+    raycaster.setFromCamera(mouse, camera);
+
+    // Intersecta con el plano del suelo (y=0)
+    const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const point = new THREE.Vector3();
+    raycaster.ray.intersectPlane(plane, point);
+
+    console.log(`x: ${point.x.toFixed(2)}, y: ${point.y.toFixed(2)}, z: ${point.z.toFixed(2)}`);
+});
+
+const posicionesEtiquetaRack = {
+  'A': { x: 25.31, y: 11, z: 4.01 }, // Más a la izquierda (x: -3) y más alto (y: 7)
+  'B': { x: 25.31, y: 11, z:  4.01},     // Arriba y al fondo para B
+  'C': { x: 25.31, y: 11, z: 4.01 },     // Derecha para C x= izquierda y=altura z= fondo
+  'D': { x: 25.31, y: 11, z: 4.01 },    // Arriba y al frente para D
+  'E': { x: 25, y: 11, z: 3 },    // Izquierda para E
+  'F': { x: 25, y: 11, z: 2 },     // Arriba y al fondo para F
+  'G': { x: 25.31, y: 11, z: 4.01 },     // Derecha para G
+  'H': { x: 25.31, y: 11, z: 4.01 },    // Arriba y al frente para H
+  'I': { x: 25.31, y: 11, z: 4.01 },    // Izquierda para I
+  'J': { x: 25, y: 11, z: 4}      // Arriba y al fondo para J
+};
 
 
 function crearEtiquetaRack(rack, letraRack, anchuraRack, alturaRack, profundidad) {
-    // Crear canvas para generar la imagen del texto
     const canvas = document.createElement('canvas');
     const context = canvas.getContext('2d');
 
-      // Por esto:
-      canvas.width = 512;
-      canvas.height = 128;
-    // === Dibujar borde negro ===
-    const padding = 40; // Grosor del borde negro externo
-    const innerPadding = 20; // Espacio entre texto y fondo blanco
+    // Más grande para mejor visibilidad
+    canvas.width = 800;
+    canvas.height = 220;
 
-    // Fondo negro (borde exterior)
-    context.fillStyle = '#000000';
+    // Borde rojo más delgado
+    const padding = 14; // Grosor del borde rojo exterior
+
+    // Fondo rojo (borde exterior)
+    context.fillStyle = '#d32f2f'; // Rojo fuerte
     context.fillRect(0, 0, canvas.width, canvas.height);
 
     // Fondo blanco (interior)
@@ -1585,20 +1629,18 @@ function crearEtiquetaRack(rack, letraRack, anchuraRack, alturaRack, profundidad
         canvas.height - padding * 2
     );
 
-    // Estilo del texto
-    context.font = 'bold 96px Arial';
-    context.fillStyle = '#000000'; // Negro sobre fondo blanco
+    // Texto grande, negro y en negrita
+    context.font = 'bold 120px Arial';
+    context.fillStyle = '#000000'; // Negro
     context.textAlign = 'center';
     context.textBaseline = 'middle';
 
-
-    // --- CAMBIO AQUÍ ---
     let textoEtiqueta = letraRack === 'J2' ? 'J' : letraRack;
-    context.fillText(`RACK ${textoEtiqueta}`, canvas.width / 2, canvas.height / 2);
+    context.fillText(`PASILLO ${textoEtiqueta}`, canvas.width / 2, canvas.height / 2);
     // Posición centrada dentro del área blanca
     const textoX = canvas.width / 2;
     const textoY = canvas.height / 2;
-    context.fillText(`RACK ${textoEtiqueta}`, textoX, textoY);
+    context.fillText(`PASILLO ${textoEtiqueta}`, textoX, textoY);
 
     // Convertimos el canvas en textura
     const texture = new THREE.CanvasTexture(canvas);
@@ -1617,15 +1659,15 @@ function crearEtiquetaRack(rack, letraRack, anchuraRack, alturaRack, profundidad
     const placaMaterial = new THREE.MeshBasicMaterial({ map: texture });
     const placa = new THREE.Mesh(placaGeometry, placaMaterial);
 
-    // Rotamos la placa 90° sobre el eje Y para que mire hacia el costado del rack
-    placa.rotation.y = -Math.PI / 2;
+    const pos = posicionesEtiquetaRack[letraRack] || { x: anchuraRack / 2 + 0.1, y: alturaRack + 0.4, z: 0 };
 
-    // Posicionamos la placa encima del rack
-    placa.position.set(-anchuraRack / 2 - 0.1, alturaRack + 0.4, 0);
+    // Aplica la posición personalizada
+    placa.position.set(pos.x, pos.y, pos.z);
 
+    // Aplica la rotación por defecto a todas las etiquetas
+    placa.rotation.y = Math.PI / 2;
 
-    
-    // Añadimos al rack
+    // Añade la placa al rack
     rack.add(placa);
 }
 
@@ -1739,7 +1781,8 @@ const MAPA_RECORRIDO_EXTENDIDO = {
         // Niveles B, C, D, E, F, G, H (altura 2-7) = 2 palets cada uno
         const nivelesRestantes = ['B', 'C', 'D', 'E', 'F', 'G'];
         nivelesRestantes.forEach(nivelLetra => {
-            for (let palet = 1; palet <= 2; palet++) {
+            const maxPalets = (nivelLetra === 'B') ? 3 : 2;
+            for (let palet = 1; palet <= maxPalets; palet++) {
                 const paletStr = String(palet).padStart(2, '0');
                 const id = `${rack}${seccionStr}${nivelLetra}${paletStr}`;
                 ids.push(id);
@@ -1780,14 +1823,23 @@ const MAPA_RECORRIDO_EXTENDIDO = {
         } 
         // Lógica para niveles B-H (alturas 2-7, 2 palets cada uno)
         else {
-            const nivelIndex = nivelLetra.charCodeAt(0) - 65; // B=1, C=2, etc.
-            alturaFisica = nivelIndex + 1; // B→2, C→3, D→4, etc.
-            paletFisico = palet - 1; // 01→0, 02→1
-            if (palet < 1 || palet > 2) {
-                console.warn(`Palet ${palet} fuera de rango para nivel ${nivelLetra} (01-02)`);
-                return null;
-            }
-        }
+          const nivelIndex = nivelLetra.charCodeAt(0) - 65; // B=1, C=2, etc.
+          alturaFisica = nivelIndex + 1; // B→2, C→3, D→4, etc.
+          paletFisico = palet - 1; // 01→0, 02→1, 03→2
+
+          // Permitir 3 palets solo para nivel B
+          if (nivelLetra === 'B') {
+              if (palet < 1 || palet > 3) {
+                  console.warn(`Palet ${palet} fuera de rango para nivel B (01-03)`);
+                  return null;
+              }
+          } else {
+              if (palet < 1 || palet > 2) {
+                  console.warn(`Palet ${palet} fuera de rango para nivel ${nivelLetra} (01-02)`);
+                  return null;
+              }
+          }
+      }
         
         return {
             rack: rack,
@@ -2069,7 +2121,6 @@ function generarIDDesdePosicion(rack, seccion, nivelFisico, paletFisico, lado) {
 // 4. FUNCIÓN MODIFICADA: inicializarRacks (REEMPLAZA LA EXISTENTE)
 function inicializarRacks() {
     const distanciaEntreRacks = 3;
-    let posicionZActual = config.margenAlrededor;
 
     // Obtener todos los racks únicos mencionados en initialData
     const racksNecesarios = new Set();
@@ -2091,11 +2142,13 @@ function inicializarRacks() {
         racksNecesarios.add('B');
     }
 
-    console.log(`🏗️ Creando racks físicos: ${Array.from(racksNecesarios).sort().join(', ')}`);
+    // === CAMBIO PRINCIPAL: invertir el orden de racks y la dirección de posicionamiento ===
+    const racksArray = Array.from(racksNecesarios).sort().reverse(); // De J a A
+    let posicionZActual = config.margenAlrededor + (racksArray.length - 1) * (5 + distanciaEntreRacks);
 
     // Configuración física actualizada según el nuevo sistema
     const configRacks = {};
-    Object.keys(MAPA_RECORRIDO_EXTENDIDO.racks).forEach(letra => {
+    racksArray.forEach(letra => {
         const rackInfo = MAPA_RECORRIDO_EXTENDIDO.racks[letra];
         configRacks[letra] = {
             posInicio: { x: config.primerRackX, z: posicionZActual },
@@ -2103,21 +2156,22 @@ function inicializarRacks() {
             dobleCara: rackInfo.dobleCara,
             numeroSecciones: rackInfo.seccionesReales
         };
-        posicionZActual += 5 + distanciaEntreRacks;
+        posicionZActual -= 5 + distanciaEntreRacks; // Restar para ir de derecha a izquierda
     });
 
     // === Configuración personalizada para J2 ===
-   const zRackJ = configRacks['J'].posInicio.z;
-
+    if (configRacks['J']) {
+        const zRackJ = configRacks['J'].posInicio.z;
         configRacks['J2'] = {
             posInicio: { x: config.primerRackX, z: zRackJ + 7 }, // 5 unidades después de J
             longitud: 35,
             dobleCara: false,
             numeroSecciones: 18
         };
+    }
 
-    // Crear solo los racks necesarios
-    Array.from(racksNecesarios).sort().forEach(letraRack => {
+    // Crear solo los racks necesarios en orden invertido
+    racksArray.forEach(letraRack => {
         const rackInfo = configRacks[letraRack];
         if (!rackInfo) {
             console.warn(`⚠️ No hay configuración para el rack ${letraRack}`);
@@ -2127,7 +2181,7 @@ function inicializarRacks() {
         if (letraRack === 'F') {
             // SEPARAR FÍSICAMENTE LAS DOS CARAS DEL RACK F
             const separacion = 5;
-            // Cara A (izquierda) - SIN ETIQUETA
+            // Cara A (ahora derecha) - SIN ETIQUETA
             const rackA = crearRack(
                 { x: rackInfo.posInicio.x, z: rackInfo.posInicio.z - separacion / 2 },
                 rackInfo.longitud,
@@ -2137,14 +2191,14 @@ function inicializarRacks() {
                 rackInfo.numeroSecciones
             );
             rackA.userData.lado = 'A';
-            // REMOVER LA ETIQUETA DE LA CARA A (izquierda)
+            // REMOVER LA ETIQUETA DE LA CARA A (derecha)
             const etiquetaCaraA = rackA.children.find(child =>
                 child.material && child.material.map && child.material.map.image
             );
             if (etiquetaCaraA) {
                 rackA.remove(etiquetaCaraA);
             }
-            // Cara B (derecha) - CON ETIQUETA
+            // Cara B (izquierda) - CON ETIQUETA
             const rackB = crearRack(
                 { x: rackInfo.posInicio.x, z: rackInfo.posInicio.z + separacion / 2 },
                 rackInfo.longitud,
@@ -2154,9 +2208,9 @@ function inicializarRacks() {
                 rackInfo.numeroSecciones
             );
             rackB.userData.lado = 'B';
-            console.log(`✅ Rack F creado como dos caras separadas - Etiqueta solo en cara derecha`);
+            console.log(`✅ Rack F creado como dos caras separadas - Etiqueta solo en cara izquierda`);
         } else if (letraRack === 'J') {
-            // Rack J (izquierda) - SIN ETIQUETA
+            // Rack J (izquierda) - CON ETIQUETA
             const rackJ = crearRack(
                 rackInfo.posInicio,
                 rackInfo.longitud,
@@ -2166,25 +2220,20 @@ function inicializarRacks() {
                 rackInfo.numeroSecciones
             );
             rackJ.userData.lado = 'A';
-            // REMOVER LA ETIQUETA DE LA CARA IZQUIERDA (J)
-            const etiquetaJ = rackJ.children.find(child =>
-                child.material && child.material.map && child.material.map.image
-            );
-            if (etiquetaJ) {
-                rackJ.remove(etiquetaJ);
-            }
-            // Rack J2 (derecha) - CON ETIQUETA "RACK J"
+            // NO elimines la etiqueta aquí
+
+            // Rack J2 (derecha) - SIN ETIQUETA
             const rackJ2Info = configRacks['J2'];
             const rackJ2 = crearRack(
                 rackJ2Info.posInicio,
                 rackJ2Info.longitud,
-                'J', // Etiqueta debe decir "RACK J"
+                'J2', // NO crea etiqueta
                 8,
                 false,
                 rackJ2Info.numeroSecciones
             );
             rackJ2.userData.lado = 'B';
-            console.log(`✅ Rack J creado como dos caras separadas - Etiqueta solo en la derecha (J2)`);
+            console.log(`✅ Rack J creado como dos caras separadas - Etiqueta solo en la izquierda (J)`);
         } else {
             // Para todos los demás racks, crear normal
             crearRack(
@@ -2202,7 +2251,6 @@ function inicializarRacks() {
     // Mostrar el esquema de recorrido
     mostrarEsquemaRecorrido();
 }
-
 
 
 
@@ -2384,10 +2432,14 @@ function obtenerPosicionDesdeDatos(item) {
     const halfProf = rackData.halfProf || (rackData.profundidad / 2);
     
     // Determinar palets por sección según nivel
-    const paletsPorSeccion = nivel < 2 ? 
-        rackData.paletsPorNivel['0-1'] : 
-        rackData.paletsPorNivel['2+'];
-    
+    let paletsPorSeccion;
+    if (nivel < 2) {
+        paletsPorSeccion = rackData.paletsPorNivel['0-1'];
+    } else if (nivel === 2) {
+        paletsPorSeccion = 3; // O rackData.paletsPorNivel['nivel2'] si lo tienes en userData
+    } else {
+        paletsPorSeccion = rackData.paletsPorNivel['2+'];
+    }
     // Configuración de palets
     const configPalets = rackData.configPalets || {
         ancho: 0.9,
@@ -2397,9 +2449,9 @@ function obtenerPosicionDesdeDatos(item) {
     
     // Calcular la posición X del inicio de la sección desde la posición del rack
     const posXRack = rackObj.position.x;
-    const inicioRack = posXRack - halfAncho;
-    const inicioSeccion = inicioRack + (seccionValida * anchoSeccion);
-    
+    const inicioRack = posXRack + halfAncho;
+    const inicioSeccion = inicioRack - ((seccionValida + 1) * anchoSeccion);
+            
     // Ajustar dimensiones de palets para que quepan en la sección
     let anchoPalet, separacion, margenAjustado;
     const espacioNecesario = (2 * configPalets.margenSeccion) +
@@ -2416,28 +2468,32 @@ function obtenerPosicionDesdeDatos(item) {
         anchoPalet = (anchoSeccion - (2 * 0.1) - ((paletsPorSeccion - 1) * separacion)) / paletsPorSeccion;
         margenAjustado = 0.1;
     }
-    
-    // Verificar que el palet está dentro del rango válido
     if (palet < 0 || palet >= paletsPorSeccion) {
         console.warn(`⚠️ El palet ${palet+1} está fuera del rango para nivel ${nivel+1} (1-${paletsPorSeccion}). Ajustando valor.`);
     }
     const paletValido = Math.min(Math.max(0, palet), paletsPorSeccion - 1);
-    
-    // *** MODIFICACIÓN PRINCIPAL: Ajustar orden de palets para cara izquierda ***
-    let paletPosicion = paletValido;
     const ladoEfectivo = dobleCara ? lado : "A";
-    
-    // Si es cara izquierda (A), invertir el orden de los palets para lectura izquierda-derecha
-    // Invertir solo si es doble cara y estamos en la cara A (izquierda)
-     if (dobleCara && ladoEfectivo === "A") {
-    paletPosicion = (paletsPorSeccion - 1) - paletValido;
-}
 
-    
-    // Calcular posición X del palet (usando paletPosicion ajustada)
+// Cambia este bloque:
+   let paletPosicion;
+    if (dobleCara) {
+        // Para racks de doble cara, invertir solo en el lado B
+        paletPosicion = (ladoEfectivo === "B") ? (paletsPorSeccion - 1) - paletValido : paletValido;
+    } else {
+        // Para racks de una sola cara, manejar específicamente cada caso:
+        if (rack === 'A') {
+            // Rack A: INVERTIR para que el mayor número esté a la izquierda
+            paletPosicion = (paletsPorSeccion - 1) - paletValido;
+        } else {
+            // Rack J2: mantener el orden normal (01 a la derecha)
+            paletPosicion = paletValido;
+        }
+    }
+    // ...existing code...
     const posX = inicioSeccion + margenAjustado + 
                 (paletPosicion * (anchoPalet + separacion)) + (anchoPalet / 2);
-    
+    // ...existing code...
+                    
     // Calcular posición Z según el lado
     const zOffset = ladoEfectivo === "A" ? -halfProf + 0.2 : halfProf - 0.2;
     const posZ = rackObj.position.z + zOffset;
@@ -2955,7 +3011,7 @@ function verificarPosicionesID(rackLetra) {
 
 function calcularPosicionPalet(rackObj, seccion, nivel, palet, lado) {
     // Esta función es similar a obtenerPosicionDesdeDatos pero para posiciones vacías
-    
+    const rack = rackObj.userData.letra;
     const dobleCara = rackObj.userData.dobleCara;
     const rackData = rackObj.userData;
     const anchoSeccion = rackData.anchoSeccion;
@@ -2964,10 +3020,14 @@ function calcularPosicionPalet(rackObj, seccion, nivel, palet, lado) {
     const halfProf = rackData.halfProf || (rackData.profundidad / 2);
     
     // Palets por sección según nivel
-    const paletsPorSeccion = nivel < 2 ? 
-        rackData.paletsPorNivel['0-1'] : 
-        rackData.paletsPorNivel['2+'];
-    
+    let paletsPorSeccion;
+    if (nivel < 2) {
+        paletsPorSeccion = rackData.paletsPorNivel['0-1'];
+    } else if (nivel === 2) {
+        paletsPorSeccion = 3; // O rackData.paletsPorNivel['nivel2'] si lo tienes en userData
+    } else {
+        paletsPorSeccion = rackData.paletsPorNivel['2+'];
+    }
     // Configuración de palets
     const configPalets = rackData.configPalets || {
         ancho: 0.9,
@@ -2977,9 +3037,9 @@ function calcularPosicionPalet(rackObj, seccion, nivel, palet, lado) {
     
     // Calcular posición X
     const posXRack = rackObj.position.x;
-    const inicioRack = posXRack - halfAncho;
-    const inicioSeccion = inicioRack + (seccion * anchoSeccion);
-    
+    const inicioRack = posXRack + halfAncho;
+    const inicioSeccion = inicioRack - ((seccion + 1) * anchoSeccion);
+        
     // Ajustar dimensiones de palets para que quepan en la sección
     let anchoPalet, separacion, margenAjustado;
     const espacioNecesario = (2 * configPalets.margenSeccion) +
@@ -2997,27 +3057,30 @@ function calcularPosicionPalet(rackObj, seccion, nivel, palet, lado) {
         margenAjustado = 0.1;
     }
     
-    // Verificar que el palet está dentro del rango válido
     if (palet < 0 || palet >= paletsPorSeccion) {
-        console.warn(`⚠️ El palet ${palet+1} está fuera del rango para nivel ${nivel+1} (1-${paletsPorSeccion}). Ajustando valor.`);
-    }
-    const paletValido = Math.min(Math.max(0, palet), paletsPorSeccion - 1);
-    
-    // *** MODIFICACIÓN PRINCIPAL: Ajustar orden de palets para cara izquierda ***
-    let paletPosicion = paletValido;
-    const ladoEfectivo = dobleCara ? lado : "A";
-    
-    // Si es cara izquierda (A), invertir el orden de los palets para lectura izquierda-derecha
-    // Invertir solo si es doble cara y estamos en la cara A (izquierda)
-     if (dobleCara && ladoEfectivo === "A") {
-    paletPosicion = (paletsPorSeccion - 1) - paletValido;
-}
+      console.warn(`⚠️ El palet ${palet+1} está fuera del rango para nivel ${nivel+1} (1-${paletsPorSeccion}). Ajustando valor.`);
+  }
+      const paletValido = Math.min(Math.max(0, palet), paletsPorSeccion - 1);
+      const ladoEfectivo = dobleCara ? lado : "A";
 
-    
-    // Calcular posición X del palet (usando paletPosicion ajustada)
-    const posX = inicioSeccion + margenAjustado + 
-                (paletPosicion * (anchoPalet + separacion)) + (anchoPalet / 2);
-    
+    let paletPosicion;
+      if (dobleCara) {
+          // Para racks de doble cara, invertir solo en el lado B
+          paletPosicion = (ladoEfectivo === "B") ? (paletsPorSeccion - 1) - paletValido : paletValido;
+      } else {
+          // Para racks de una sola cara, manejar específicamente cada caso:
+          if (rack === 'A') {
+              // Rack A: INVERTIR para que el mayor número esté a la izquierda
+              paletPosicion = (paletsPorSeccion - 1) - paletValido;
+          } else {
+              // Rack J2: mantener el orden normal (01 a la derecha)
+              paletPosicion = paletValido;
+          }
+      }
+      // ...existing code...
+      const posX = inicioSeccion + margenAjustado + 
+                  (paletPosicion * (anchoPalet + separacion)) + (anchoPalet / 2);
+                        
     // Calcular posición Z según el lado
     const zOffset = ladoEfectivo === "A" ? -halfProf + 0.2 : halfProf - 0.2;
     const posZ = rackObj.position.z + zOffset;
@@ -3053,48 +3116,42 @@ function calcularPosicionPalet(rackObj, seccion, nivel, palet, lado) {
 
   // Función para enfocar el rack seleccionado con la cámara
   function enfocarRack(letraRack) {
-    if (letraRack === 'all') {
-      // Vista general
-      const centerX = 15;
-      const centerZ = 20;
-      camera.position.set(40, 35, 40);
-      camera.lookAt(centerX, 5, centerZ);
-      controls.target.set(centerX, 3, centerZ);
-      controls.update();
-      return;
-    }
-    
-    const rack = scene.children.find(obj => 
-      obj.userData?.tipoObjeto === 'rack' && 
-      obj.userData?.letra === letraRack
-    );
-    
-    if (rack) {
-      const rackData = rack.userData;
-      const centerX = rack.position.x;
-      const centerZ = rack.position.z;
-      
-      // Calcular distancia de la cámara basada en el tamaño del rack
-      const distancia = Math.max(
-        rackData.anchura * 1.5,
-        rackData.profundidad * 3,
-        15
-      );
-      
-      camera.position.set(
-        centerX - distancia * 0.7,
-        rackData.alturaRack * 1.2,
-        centerZ + distancia * 0.7
-      );
-      camera.lookAt(centerX, rackData.alturaRack * 0.5, centerZ);
-     orbitControls.target.set(centerX, 3, centerZ);
-      orbitControls.update();
-       
-
-    }
-    
-    needsRender = true;
+  if (letraRack === 'all') {
+    // Vista general
+    const centerX = 15;
+    const centerZ = 20;
+    camera.position.set(60, 40, centerZ); // Más alejado en X positivo
+    camera.lookAt(centerX, 5, centerZ);
+    orbitControls.target.set(centerX, 3, centerZ);
+    orbitControls.update();
+    return;
   }
+
+  const rack = scene.children.find(obj =>
+    obj.userData?.tipoObjeto === 'rack' &&
+    obj.userData?.letra === letraRack
+  );
+
+  if (rack) {
+    const rackData = rack.userData;
+    const centerX = rack.position.x + rackData.anchura / 2 + 5; // X positivo, a la derecha del rack
+    const centerZ = rack.position.z;
+    const altura = rackData.alturaRack * 1.2;
+    const distancia = Math.max(
+      rackData.anchura * 0.5,
+      rackData.profundidad * 1.5,
+      10
+    );
+
+    // Posiciona la cámara a la derecha y un poco arriba, mirando al centro del rack
+    camera.position.set(centerX + distancia, altura, centerZ);
+    camera.lookAt(centerX, rackData.alturaRack * 0.5, centerZ);
+    orbitControls.target.set(centerX, 3, centerZ);
+    orbitControls.update();
+  }
+
+  needsRender = true;
+}
 
   async function manejarCambioArticulo() {
   const selectArticulo = document.getElementById('articulo-filter');
@@ -3142,6 +3199,14 @@ async function manejarCambioRack() {
   // Enfocar rack si no es 'all'
   if (filtrosActivos.rack !== 'all') {
     enfocarRack(filtrosActivos.rack);
+  }
+
+   // === AQUI AGREGA EL BLOQUE PARA ESTADÍSTICAS ===
+  const valor = selectRack.value;
+  if (['A','B','C','D','E','F','G','H','I','J'].includes(valor)) {
+      calcularOcupacionPorPasillo(valor);
+  } else {
+      calcularOcupacionRacks(valor);
   }
 }
 
@@ -3870,67 +3935,139 @@ async function aplicarFiltrosDesdeAPI() {
     eliminarIndicadorCarga();
   }
 }
+
+console.log('[DEBUG] IDs de ubicacionesFiltradas:', ubicacionesFiltradas.map(u => u.id));
 function aplicarFiltrosVisuales(ubicacionesFiltradas, rackFiltro = 'all') {
   const idsVisibles = new Set(ubicacionesFiltradas.map(u => u.id));
-  const racksConCajasVisibles = new Set();
+  const racksArray = Object.keys(MAPA_RECORRIDO_EXTENDIDO.racks);
+  const idx = racksArray.indexOf(rackFiltro);
 
-  // Primero, determinar qué cajas (con contenido) estarán visibles y en qué racks
+  // Determinar qué caras de racks mostrar según el filtro de rack
+  let racksCaras = [];
+  if (rackFiltro !== 'all' && idx !== -1) {
+    // Mostrar la cara B del rack seleccionado (si existe)
+    racksCaras.push({ rack: rackFiltro, lado: 'B' });
+
+    // Mostrar la cara A del siguiente rack físico (si existe)
+    if (idx + 1 < racksArray.length) {
+      const siguienteRack = racksArray[idx + 1];
+      const infoSiguienteRack = MAPA_RECORRIDO_EXTENDIDO.racks[siguienteRack];
+      if (infoSiguienteRack && infoSiguienteRack.dobleCara) {
+        racksCaras.push({ rack: siguienteRack, lado: 'A' });
+      }
+    }
+
+    // EXCEPCIÓN: Rack A solo tiene una cara (lado A)
+    if (rackFiltro === 'A') {
+      racksCaras.push({ rack: 'A', lado: 'A' });
+    }
+
+    // EXCEPCIÓN: Rack J debe mostrar también J2 (su "otra cara")
+   if (rackFiltro === 'J') {
+    racksCaras.push({ rack: 'J', lado: 'B' });
+    racksCaras.push({ rack: 'J2', lado: 'B' });
+  }
+  }
+
+  const racksConCajasVisibles = new Set();
+console.log('[DEBUG] racksCaras:', racksCaras);
+  // Filtrar cajas con contenido
   boxes.forEach(caja => {
     const userData = caja.userData;
     let visible = false;
 
     if (!userData.esPaletVacio) {
-      // Caja con contenido: mostrar solo si está en el filtro Y en el array filtrado
-      if (
-        (rackFiltro === 'all' || userData.rack === rackFiltro || (rackFiltro === 'J' && userData.rack === 'J2')) &&
-        idsVisibles.has(userData.id)
-      ) {
-        visible = true;
-        racksConCajasVisibles.add(userData.rack);
+      // Caja con contenido: aplicar filtros de cliente/artículo Y filtro de rack
+      if (idsVisibles.has(userData.id)) {
+        if (rackFiltro === 'all') {
+          visible = true;
+        } else {
+          // Mostrar solo si está en la lista de racksCaras
+          visible = racksCaras.some(rc =>
+            userData.rack === rc.rack &&
+            (userData.lado === rc.lado || (!userData.lado && rc.lado === 'B'))
+          );
+        }
+        
+        if (visible) {
+          racksConCajasVisibles.add(userData.rack);
+        }
       }
     }
+    
     caja.visible = visible;
   });
 
+  // Filtrar palets vacíos
   boxes.forEach(caja => {
     const userData = caja.userData;
+    
     if (userData.esPaletVacio) {
-      // Mostrar palets vacíos de J2 si el filtro es J o J2
-      if (
-        (rackFiltro === 'J' && (userData.rack === 'J' || userData.rack === 'J2')) ||
-        (rackFiltro === 'J2' && userData.rack === 'J2') ||
-        rackFiltro === 'all'
-      ) {
-        // Solo mostrar si la posición está vacía en el filtro actual
-        caja.visible = racksConCajasVisibles.has(userData.rack);
+      let visible = false;
+      
+      if (rackFiltro === 'all') {
+        // Mostrar palets vacíos solo si hay cajas visibles en ese rack
+        visible = racksConCajasVisibles.has(userData.rack);
       } else {
-        caja.visible = racksConCajasVisibles.has(userData.rack) &&
-                       (rackFiltro === 'all' || userData.rack === rackFiltro);
+        // Aplicar la misma lógica de caras que para las cajas con contenido
+        if (racksConCajasVisibles.has(userData.rack)) {
+          visible = racksCaras.some(rc =>
+            userData.rack === rc.rack &&
+            (userData.lado === rc.lado || (!userData.lado && rc.lado === 'B'))
+          );
+        }
+        
+        // Manejo especial para J/J2
+        if (rackFiltro === 'J' && (userData.rack === 'J' || userData.rack === 'J2')) {
+          visible = racksConCajasVisibles.has(userData.rack);
+        }
       }
+      
+      caja.visible = visible;
     }
   });
 
-  // Mostrar/ocultar racks: solo si tienen al menos una caja o palet vacío visible
+  // Filtrar racks
   scene.children.forEach(obj => {
     if (obj.userData?.tipoObjeto === 'rack') {
-      const tieneAlgoVisible = boxes.some(
-        caja => caja.userData.rack === obj.userData.letra && caja.visible
-      );
-      obj.visible = tieneAlgoVisible;
+      let visible = false;
+      
+      if (rackFiltro === 'all') {
+        // Mostrar rack si tiene al menos una caja o palet visible
+        visible = boxes.some(caja => 
+          caja.visible && caja.userData.rack === obj.userData.letra
+        );
+      } else if (
+        // Mostrar siempre la cara derecha de J y J2 cuando el filtro es J
+        (rackFiltro === 'J' && (
+          (obj.userData.letra === 'J' && obj.userData.lado === 'A') ||
+          (obj.userData.letra === 'J2' && obj.userData.lado === 'B')
+        ))
+      ) {
+        visible = true;
+      } else {
+        // Lógica normal: mostrar si hay cajas visibles en esa cara
+        visible = boxes.some(caja =>
+          caja.visible &&
+          caja.userData.rack === obj.userData.letra &&
+          (obj.userData.lado ? caja.userData.lado === obj.userData.lado : true)
+        );
+      }
+      
+      obj.visible = visible;
     }
   });
 
   needsRender = true;
 }
+
 // Función para aplicar los filtros
 function aplicarFiltros() {
   const filtros = obtenerFiltrosActuales();
   filtrarCajas(filtros);
   actualizarEstadisticasFiltradas(filtros);
-   aplicarFiltrosDesdeAPI();
-
+  aplicarFiltrosDesdeAPI();
 }
-
 
 async function setupRackFilterUI() {
   const selectRack = document.getElementById('rack-filter');
@@ -4037,118 +4174,104 @@ function calcularOcupacionRacks(rackEspecifico = 'all') {
     }
     
     const estadisticasRacks = {};
-    
-    // Paso 1: Calcular capacidad teórica para cada rack
-    racks.forEach(rack => {
-        const letraRack = rack.userData.letra;
-        
-        // Calcular capacidad usando la configuración
-        let capacidadCalculada = calcularCapacidadRackPorConfiguracion(rack);
-        
-        // Validar contra las cajas existentes
-        const capacidadFinal = validarCapacidadContraCajas(letraRack, capacidadCalculada);
-        
-        estadisticasRacks[letraRack] = {
-            capacidadTotal: capacidadFinal,
-            ocupados: 0,
-            disponibles: 0,
-            sinDisponibilidad: 0,
-            especiales: 0,
-            vacantes: 0,
-            ocupacionTotal: 0,
-            porcentajeEspeciales: 0,
-            porcentajeDisponibles: 0,
-            porcentajeSinDisponibilidad: 0,
-            porcentajeVacantes: 0
-        };
-    });
-    
-    // Paso 2: Contar cajas ocupadas por estado
-    const cajas = scene.children.filter(obj => 
-        obj.geometry instanceof THREE.BoxGeometry && 
-        obj.userData?.id?.match(/^[A-Z]\d{2}[A-Z]\d{2}$/)
-    );
-    
-    cajas.forEach(caja => {
-        let letraRack = caja.userData.id.charAt(0);
-        // Unir J2 en J
-        if (letraRack === 'J2') letraRack = 'J';
 
-        if (estadisticasRacks[letraRack]) {
-            // Solo contar si la caja está visible y no está vacía
-            if (caja.visible && caja.userData.estado && caja.userData.estado !== 'vacio') {
-                estadisticasRacks[letraRack].ocupados++;
-                
-                // Contabilizar por estado específico
-                switch (caja.userData.estado) {
-                    case "sin disponibilidad":
-                        estadisticasRacks[letraRack].sinDisponibilidad++;
-                        break;
-                    case "disponible":
-                        estadisticasRacks[letraRack].disponibles++;
-                        break;
-                }
-                
-                // Contabilizar especiales (PU01P001)
-                if (caja.userData.cod_area === "PU01P001") {
-                    estadisticasRacks[letraRack].especiales++;
-                }
+    racks.forEach(rack => {
+    let letraRack = rack.userData.letra;
+    // Solo J2 se agrupa bajo la clave 'J', ignora J
+    const key = (letraRack === 'J2') ? 'J' : letraRack;
+    if (!estadisticasRacks[key]) {
+        estadisticasRacks[key] = {
+            capacidadTotal: 0,
+            ocupados: 0,
+            vacios: 0,
+            ocupacionTotal: 0
+        };
+    }
+});
+  // ...existing code...
+  boxes.forEach(caja => {
+    let letraRack = caja.userData.rack;
+    // Solo J2 se agrupa bajo la clave 'J', ignora J
+    if (letraRack === 'J') return; // <-- ignora las cajas del rack J
+    const key = (letraRack === 'J2') ? 'J' : letraRack;
+
+    if (estadisticasRacks[key] && caja.visible) {
+        estadisticasRacks[key].capacidadTotal++;
+        if (caja.userData.esPaletVacio) {
+            estadisticasRacks[key].vacios++;
+        } else {
+            estadisticasRacks[key].ocupados++;
+        }
+    }
+});
+
+    // Calcular porcentajes
+    Object.keys(estadisticasRacks).forEach(letraRack => {
+        const stats = estadisticasRacks[letraRack];
+        if (stats.capacidadTotal > 0) {
+            stats.ocupacionTotal = (stats.ocupados / stats.capacidadTotal) * 100;
+        }
+    });
+
+    // Mostrar resultados
+    mostrarEstadisticasRacks(estadisticasRacks, rackEspecifico);
+
+    return estadisticasRacks;
+}
+
+
+
+function calcularOcupacionPorPasillo(pasillo) {
+    // Define la relación pasillo → caras físicas
+    const PASILLOS = {
+        'A': [{ rack: 'A', lado: 'A' }, { rack: 'B', lado: 'B' }],
+        'B': [{ rack: 'B', lado: 'A' }, { rack: 'C', lado: 'B' }],
+        'C': [{ rack: 'C', lado: 'A' }, { rack: 'D', lado: 'B' }],
+        'D': [{ rack: 'D', lado: 'A' }, { rack: 'E', lado: 'B' }],
+        'E': [{ rack: 'E', lado: 'A' }, { rack: 'F', lado: 'B' }],
+        'F': [{ rack: 'F', lado: 'A' }, { rack: 'G', lado: 'B' }],
+        'G': [{ rack: 'G', lado: 'A' }, { rack: 'H', lado: 'B' }],
+        'H': [{ rack: 'H', lado: 'A' }, { rack: 'I', lado: 'B' }],
+        'I': [{ rack: 'I', lado: 'A' }, { rack: 'J', lado: 'B' }],
+        'J': [{ rack: 'J', lado: 'B' }, { rack: 'J2', lado: 'B' }]
+    };
+
+    const caras = PASILLOS[pasillo];
+    if (!caras) {
+        alert('Pasillo no válido');
+        return;
+    }
+
+    // Inicializa estadísticas
+    const estadisticas = {
+        capacidadTotal: 0,
+        ocupados: 0,
+        vacios: 0,
+        ocupacionTotal: 0
+    };
+
+    // Filtra solo cajas/palets de las caras del pasillo
+    boxes.forEach(caja => {
+        const { rack, lado } = caja.userData;
+        if (caras.some(c => c.rack === rack && (c.lado === lado || !c.lado))) {
+            estadisticas.capacidadTotal++;
+            if (caja.userData.esPaletVacio) {
+                estadisticas.vacios++;
+            } else {
+                estadisticas.ocupados++;
             }
         }
     });
 
-    // Unir estadísticas de J2 en J
-    if (estadisticasRacks['J'] && estadisticasRacks['J2']) {
-        const statsJ = estadisticasRacks['J'];
-        const statsJ2 = estadisticasRacks['J2'];
-        // Sumar todos los campos relevantes
-        statsJ.capacidadTotal += statsJ2.capacidadTotal;
-        statsJ.ocupados += statsJ2.ocupados;
-        statsJ.disponibles += statsJ2.disponibles;
-        statsJ.sinDisponibilidad += statsJ2.sinDisponibilidad;
-        statsJ.especiales += statsJ2.especiales;
-        statsJ.vacantes += statsJ2.vacantes;
-        // Recalcular porcentajes
-        if (statsJ.capacidadTotal > 0) {
-            statsJ.ocupacionTotal = (statsJ.ocupados / statsJ.capacidadTotal) * 100;
-            statsJ.porcentajeEspeciales = (statsJ.especiales / statsJ.capacidadTotal) * 100;
-            statsJ.porcentajeDisponibles = (statsJ.disponibles / statsJ.capacidadTotal) * 100;
-            statsJ.porcentajeSinDisponibilidad = (statsJ.sinDisponibilidad / statsJ.capacidadTotal) * 100;
-            statsJ.porcentajeVacantes = (statsJ.vacantes / statsJ.capacidadTotal) * 100;
-        }
-        // Eliminar J2 del objeto
-        delete estadisticasRacks['J2'];
+    if (estadisticas.capacidadTotal > 0) {
+        estadisticas.ocupacionTotal = (estadisticas.ocupados / estadisticas.capacidadTotal) * 100;
     }
-    
-    // Paso 3: Calcular porcentajes y métricas finales
-    Object.keys(estadisticasRacks).forEach(letraRack => {
-        const stats = estadisticasRacks[letraRack];
-        
-        // Calcular vacantes
-        stats.vacantes = Math.max(0, stats.capacidadTotal - stats.ocupados);
-        
-        // Calcular porcentajes (evitar división por cero)
-        if (stats.capacidadTotal > 0) {
-            stats.ocupacionTotal = (stats.ocupados / stats.capacidadTotal) * 100;
-            stats.porcentajeEspeciales = (stats.especiales / stats.capacidadTotal) * 100;
-            stats.porcentajeDisponibles = (stats.disponibles / stats.capacidadTotal) * 100;
-            stats.porcentajeSinDisponibilidad = (stats.sinDisponibilidad / stats.capacidadTotal) * 100;
-            stats.porcentajeVacantes = (stats.vacantes / stats.capacidadTotal) * 100;
-        }
-        
-        // Log para debugging
-        console.log(`📊 Rack ${letraRack}:`);
-        console.log(`   Capacidad: ${stats.capacidadTotal} posiciones`);
-        console.log(`   Ocupados: ${stats.ocupados} (${stats.ocupacionTotal.toFixed(1)}%)`);
-        console.log(`   Vacantes: ${stats.vacantes} (${stats.porcentajeVacantes.toFixed(1)}%)`);
-        console.log(`   Disponibles: ${stats.disponibles}, Sin disp.: ${stats.sinDisponibilidad}, Especiales: ${stats.especiales}`);
-    });
-    
-    // Mostrar resultados
-    mostrarEstadisticasRacks(estadisticasRacks, rackEspecifico);
-    
-    return estadisticasRacks;
+
+    // Muestra la estadística solo para ese pasillo
+    mostrarEstadisticasRacks({ [`Pasillo ${pasillo}`]: estadisticas }, `Pasillo ${pasillo}`);
+    return estadisticas;
 }
+
 
 // 1. Función corregida para calcular capacidad por configuración
 function calcularCapacidadRackPorConfiguracion(rack) {
@@ -4206,106 +4329,8 @@ function validarCapacidadContraCajas(letraRack, capacidadCalculada) {
     
     return capacidadCalculada;
 }
-// Función mejorada que usa ambos métodos de cálculo
-function calcularOcupacionRacksMejorado(rackEspecifico = 'all') {
-    const racks = scene.children.filter(obj => 
-            obj.userData?.tipoObjeto === 'rack' &&
-            (rackEspecifico === 'all' || obj.userData.letra === rackEspecifico)
-        );
-        
-    if (racks.length === 0) {
-        console.error("No se encontraron racks en la escena");
-        return;
-    }
-    
-    const estadisticasRacks = {};
-    
-    // Inicializar estadísticas usando ambos métodos de cálculo
-    racks.forEach(rack => {
-        const letraRack = rack.userData.letra;
-        
-        // Método 1: Calcular por configuración del rack
-        const capacidadPorConfiguracion = calcularCapacidadRackPorConfiguracion(rack);
-        
-        estadisticasRacks[letraRack] = {
-            capacidadTotal: capacidadPorConfiguracion,
-            ocupados: 0,
-            disponibles: 0,
-            sinDisponibilidad: 0,
-            especiales: 0,
-            ocupacionTotal: 0,
-            porcentajeEspeciales: 0,
-            porcentajeDisponibles: 0,
-            porcentajeSinDisponibilidad: 0
-        };
-    });
-    
-    // Contar cajas ocupadas
-    const cajas = scene.children.filter(obj => 
-        obj.geometry instanceof THREE.BoxGeometry && 
-        obj.userData?.id?.match(/^[A-Z]\d{2}[A-Z]\d{2}$/)
-    );
-    
-    // Método 2: Verificar capacidad basándose en cajas existentes
-    const cajasCountPorRack = {};
-    cajas.forEach(caja => {
-        const letraRack = caja.userData.id.charAt(0);
-        if (!cajasCountPorRack[letraRack]) {
-            cajasCountPorRack[letraRack] = { total: 0, ocupadas: 0 };
-        }
-        cajasCountPorRack[letraRack].total++;
-        
-        if (caja.visible && caja.userData.estado !== 'vacio') {
-            cajasCountPorRack[letraRack].ocupadas++;
-        }
-    });
-    
-    // Ajustar capacidades si es necesario
-    Object.keys(estadisticasRacks).forEach(letraRack => {
-        const stats = estadisticasRacks[letraRack];
-        const cajasInfo = cajasCountPorRack[letraRack];
-        
-        if (cajasInfo && cajasInfo.total > stats.capacidadTotal) {
-            console.log(`Ajustando capacidad del Rack ${letraRack} de ${stats.capacidadTotal} a ${cajasInfo.total} basándose en cajas existentes`);
-            stats.capacidadTotal = cajasInfo.total;
-        }
-        
-        if (cajasInfo) {
-            stats.ocupados = cajasInfo.ocupadas;
-        }
-    });
-    
-    // Contar por estado
-    cajas.forEach(caja => {
-        const letraRack = caja.userData.id.charAt(0);
-        
-        if (estadisticasRacks[letraRack] && caja.visible && caja.userData.estado !== 'vacio') {
-            if (caja.userData.estado === "sin disponibilidad") {
-                estadisticasRacks[letraRack].sinDisponibilidad++;
-            } else if (caja.userData.estado === "disponible") {
-                estadisticasRacks[letraRack].disponibles++;
-            }
-            
-            if (caja.userData.cod_area === "PU01P001") {
-                estadisticasRacks[letraRack].especiales++;
-            }
-        }
-    });
-    
-    // Calcular porcentajes finales
-    Object.keys(estadisticasRacks).forEach(letraRack => {
-        const stats = estadisticasRacks[letraRack];
-        stats.vacantes = Math.max(0, stats.capacidadTotal - stats.ocupados);
-        stats.ocupacionTotal = stats.capacidadTotal > 0 ? (stats.ocupados / stats.capacidadTotal) * 100 : 0;
-        stats.porcentajeEspeciales = stats.capacidadTotal > 0 ? (stats.especiales / stats.capacidadTotal) * 100 : 0;
-        stats.porcentajeDisponibles = stats.capacidadTotal > 0 ? (stats.disponibles / stats.capacidadTotal) * 100 : 0;
-        stats.porcentajeSinDisponibilidad = stats.capacidadTotal > 0 ? (stats.sinDisponibilidad / stats.capacidadTotal) * 100 : 0;
-        stats.porcentajeVacantes = stats.capacidadTotal > 0 ? (stats.vacantes / stats.capacidadTotal) * 100 : 0;
-    });
-    
-    mostrarEstadisticasRacks(estadisticasRacks, rackEspecifico);
-    return estadisticasRacks;
-}
+
+
 // Función para mostrar las estadísticas en una ventana o panel
 function mostrarEstadisticasRacks(estadisticasRacks,  rackEspecifico = 'all') {
      // Crear contenedor para el panel si no existe
@@ -4333,12 +4358,17 @@ function mostrarEstadisticasRacks(estadisticasRacks,  rackEspecifico = 'all') {
     
     // Limpiar panel existente
     panelEstadisticas.innerHTML = '';
-    
+
+    const esPasillo = ['A','B','C','D','E','F','G','H','I','J'].includes(rackEspecifico);
+    const nombrePasillo = esPasillo ? `Pasillo ${rackEspecifico}` : rackEspecifico;
+
     // Crear título dinámico basado en el rack seleccionado
-    const titulo = document.createElement('h2');
-    titulo.textContent = rackEspecifico === 'all' 
-        ? 'Estadísticas de Ocupación - Todos los Racks' 
-        : `Estadísticas de Ocupación - Rack "${rackEspecifico}"`;  // Aquí añadimos las comillas
+   const titulo = document.createElement('h2');
+  titulo.textContent = rackEspecifico === 'all' 
+    ? 'Estadísticas de Ocupación - Todos los Racks' 
+   : esPasillo
+    ? `Estadísticas de Ocupación - ${nombrePasillo}`
+    : `Estadísticas de Ocupación - Rack "${rackEspecifico}"`;
     titulo.style.marginTop = '0';
     titulo.style.marginBottom = '15px';
     titulo.style.borderBottom = '1px solid #ccc';
@@ -4385,11 +4415,15 @@ function mostrarEstadisticasRacks(estadisticasRacks,  rackEspecifico = 'all') {
     resumenGlobal.style.marginBottom = '15px';
      // Solo agregamos el título h3 si es para todos los racks
     let contenidoHTML = rackEspecifico === 'all' 
-        ? `<h3>Resumen Global</h3>` 
-        : '';
-    
+    ? `<h3>Resumen Global</h3>` 
+    : '';
+
+    // Solo mostrar "Total de racks" si es 'all'
+    if (rackEspecifico === 'all') {
+        contenidoHTML += `<p><strong>Total de racks:</strong> ${totalRacks}</p>`;
+    }
+
     contenidoHTML += `
-        <p><strong>Total de racks:</strong> ${totalRacks}</p>
         <p><strong>Capacidad total:</strong> ${capacidadTotal} posiciones</p>
         <p><strong>Ocupación total:</strong> ${totalOcupados} (${((totalOcupados / capacidadTotal) * 100).toFixed(2)}%)</p>
         <p><strong>Posiciones vacías:</strong> ${capacidadTotal - totalOcupados} (${(((capacidadTotal - totalOcupados) / capacidadTotal) * 100).toFixed(2)}%)</p>
@@ -4405,16 +4439,16 @@ function mostrarEstadisticasRacks(estadisticasRacks,  rackEspecifico = 'all') {
     table.style.borderCollapse = 'collapse';
     
     // Crear encabezado de tabla
-    const thead = document.createElement('thead');
-   thead.innerHTML = `
+   const thead = document.createElement('thead');
+    thead.innerHTML = `
     <tr style="background-color: #f2f2f2;">
-        <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">Rack</th>
-        <th style="padding: 8px; text-align: center; border: 1px solid #ddd;">Capacidad</th>
-        <th style="padding: 8px; text-align: center; border: 1px solid #ddd;">Ocupados</th>
-        <th style="padding: 8px; text-align: center; border: 1px solid #ddd;">Vacíos</th>
-        <th style="padding: 8px; text-align: center; border: 1px solid #ddd;">% Ocupación</th>
-    </tr>
-    `;
+    <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">${esPasillo ? 'Pasillo' : 'Rack'}</th>
+    <th style="padding: 8px; text-align: center; border: 1px solid #ddd;">Capacidad</th>
+    <th style="padding: 8px; text-align: center; border: 1px solid #ddd;">Ocupados</th>
+    <th style="padding: 8px; text-align: center; border: 1px solid #ddd;">Vacíos</th>
+    <th style="padding: 8px; text-align: center; border: 1px solid #ddd;">% Ocupación</th>
+  </tr>
+  `;
     table.appendChild(thead);
     
     const tbody = document.createElement('tbody');
@@ -4426,6 +4460,7 @@ function mostrarEstadisticasRacks(estadisticasRacks,  rackEspecifico = 'all') {
     letrasRack.forEach(letraRack => {
         const stats = estadisticasRacks[letraRack];
         const row = document.createElement('tr');
+        
         
         // Determinar color de fondo según nivel de ocupación
         let bgColor = '#ffffff';
@@ -4441,14 +4476,14 @@ function mostrarEstadisticasRacks(estadisticasRacks,  rackEspecifico = 'all') {
         
         row.style.backgroundColor = bgColor;
         
+        const nombreMostrar = esPasillo ? nombrePasillo : `Rack ${letraRack}`;
         row.innerHTML = `
-          <td style="padding: 8px; border: 1px solid #ddd;"><strong>Rack ${letraRack}</strong></td>
+          <td style="padding: 8px; border: 1px solid #ddd;"><strong>${nombreMostrar}</strong></td>
           <td style="padding: 8px; text-align: center; border: 1px solid #ddd;">${stats.capacidadTotal}</td>
           <td style="padding: 8px; text-align: center; border: 1px solid #ddd;">${stats.ocupados}</td>
-          <td style="padding: 8px; text-align: center; border: 1px solid #ddd;">${stats.vacantes}</td>
+          <td style="padding: 8px; text-align: center; border: 1px solid #ddd;">${stats.vacios}</td>
           <td style="padding: 8px; text-align: center; border: 1px solid #ddd;">${stats.ocupacionTotal.toFixed(2)}%</td>
-      `;
-        
+        `;
         tbody.appendChild(row);
     });
     
@@ -4472,52 +4507,52 @@ function mostrarEstadisticasRacks(estadisticasRacks,  rackEspecifico = 'all') {
         graficoBarra.style.margin = '10px 0';
         
         const tituloRack = document.createElement('div');
-        tituloRack.textContent = `Rack ${letraRack}`;
+        tituloRack.textContent = esPasillo ? nombrePasillo : `Rack ${letraRack}`;
         tituloRack.style.fontWeight = 'bold';
         tituloRack.style.marginBottom = '3px';
         graficoBarra.appendChild(tituloRack);
         
        // Reemplaza la creación compleja de barras con este código más simple
-const barraCompleta = document.createElement('div');
-barraCompleta.style.width = '100%';
-barraCompleta.style.height = '25px';
-barraCompleta.style.display = 'flex';
-barraCompleta.style.overflow = 'hidden';
-barraCompleta.style.borderRadius = '3px';
-barraCompleta.style.border = '1px solid #ccc';
+    const barraCompleta = document.createElement('div');
+    barraCompleta.style.width = '100%';
+    barraCompleta.style.height = '25px';
+    barraCompleta.style.display = 'flex';
+    barraCompleta.style.overflow = 'hidden';
+    barraCompleta.style.borderRadius = '3px';
+    barraCompleta.style.border = '1px solid #ccc';
 
-// Solo dos colores: ocupado y vacío
-const barraOcupados = document.createElement('div');
-barraOcupados.style.width = `${stats.ocupacionTotal}%`;
-barraOcupados.style.backgroundColor = '#2196F3'; // Azul para todos los ocupados
-barraOcupados.style.height = '100%';
-barraOcupados.title = `Ocupados: ${stats.ocupados} (${stats.ocupacionTotal.toFixed(2)}%)`;
-barraCompleta.appendChild(barraOcupados);
+    // Solo dos colores: ocupado y vacío
+    const barraOcupados = document.createElement('div');
+    barraOcupados.style.width = `${stats.ocupacionTotal}%`;
+    barraOcupados.style.backgroundColor = '#2196F3'; // Azul para todos los ocupados
+    barraOcupados.style.height = '100%';
+    barraOcupados.title = `Ocupados: ${stats.ocupados} (${stats.ocupacionTotal.toFixed(2)}%)`;
+    barraCompleta.appendChild(barraOcupados);
 
-// Barra para Vacantes (gris claro)
-if (stats.porcentajeVacantes > 0) {
-    const barraVacantes = document.createElement('div');
-    barraVacantes.style.width = `${stats.porcentajeVacantes}%`;
-    barraVacantes.style.backgroundColor = '#E0E0E0';
-    barraVacantes.style.height = '100%';
-    barraVacantes.title = `Vacíos: ${stats.vacantes} (${stats.porcentajeVacantes.toFixed(2)}%)`;
-    barraCompleta.appendChild(barraVacantes);
-}
-        graficoBarra.appendChild(barraCompleta);
+    // Barra para Vacantes (gris claro)
+    if (stats.porcentajeVacantes > 0) {
+        const barraVacantes = document.createElement('div');
+        barraVacantes.style.width = `${stats.porcentajeVacantes}%`;
+        barraVacantes.style.backgroundColor = '#E0E0E0';
+        barraVacantes.style.height = '100%';
+        barraVacantes.title = `Vacíos: ${stats.vacantes} (${stats.porcentajeVacantes.toFixed(2)}%)`;
+        barraCompleta.appendChild(barraVacantes);
+    }
+            graficoBarra.appendChild(barraCompleta);
+            
+            // Leyenda para la barra
+            const leyenda = document.createElement('div');
+            leyenda.style.fontSize = '12px';
+            leyenda.style.color = '#666';
+            leyenda.style.marginTop = '2px';
+            leyenda.textContent = `${stats.ocupados} de ${stats.capacidadTotal} ocupados (${stats.ocupacionTotal.toFixed(2)}%)`;
+            graficoBarra.appendChild(leyenda);
+            
+            graficosContainer.appendChild(graficoBarra);
+        });
         
-        // Leyenda para la barra
-        const leyenda = document.createElement('div');
-        leyenda.style.fontSize = '12px';
-        leyenda.style.color = '#666';
-        leyenda.style.marginTop = '2px';
-        leyenda.textContent = `${stats.ocupados} de ${stats.capacidadTotal} ocupados (${stats.ocupacionTotal.toFixed(2)}%)`;
-        graficoBarra.appendChild(leyenda);
-        
-        graficosContainer.appendChild(graficoBarra);
-    });
-    
-    panelEstadisticas.appendChild(graficosContainer);
-   
+        panelEstadisticas.appendChild(graficosContainer);
+      
 }
 
 // Función para integrar el botón en la interfaz existente
