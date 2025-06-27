@@ -615,6 +615,12 @@
     <option value="I">Pasillo I</option>
     <option value="J">Pasillo J</option>
   </select>
+  <label for="area-filter">Área:</label>
+<select id="area-filter">
+  <option value="all">Todas las áreas</option>
+  <option value="PU">PU</option>
+  <option value="HR">HR</option>
+</select>
    <!-- Añade estos nuevos selectores -->
   <label for="cliente-filter">Cliente:</label>
   <select id="cliente-filter">
@@ -638,7 +644,7 @@
     import { OrbitControls } from './orbitcontrols.js';
     import { FontLoader } from './FontLoader.js';
     import { TextGeometry } from './TextGeometry.js';
-   import { PointerLockControls } from '/jsm/controls/PointerLockControls.js';
+   import { PointerLockControls } from './jsm/controls/PointerLockControls.js';
     // 1. PRIMERO DECLARAR LAS VARIABLES PRINCIPALES DE THREE.JS
     const scene = new THREE.Scene(); //Crear escena
   // Añadir estas configuraciones al inicializar el renderer
@@ -1541,9 +1547,7 @@ function crearRack(posicionInicial, longitud, letraRack, niveles = 8, dobleCara 
             }
         }
     }
-    if (letraRack !== 'J2') {
-        crearEtiquetaRack(rack, letraRack, anchuraRackAjustada, alturaRack, halfProf);;
-    }
+    
     // 9. Etiqueta y metadatos (optimizado)
     
     
@@ -1591,85 +1595,198 @@ renderer.domElement.addEventListener('click', function(event) {
     console.log(`x: ${point.x.toFixed(2)}, y: ${point.y.toFixed(2)}, z: ${point.z.toFixed(2)}`);
 });
 
-const posicionesEtiquetaRack = {
-  'A': { x: 25.31, y: 11, z: 4.01 }, // Más a la izquierda (x: -3) y más alto (y: 7)
-  'B': { x: 25.31, y: 11, z:  4.01},     // Arriba y al fondo para B
-  'C': { x: 25.31, y: 11, z: 4.01 },     // Derecha para C x= izquierda y=altura z= fondo
-  'D': { x: 25.31, y: 11, z: 4.01 },    // Arriba y al frente para D
-  'E': { x: 25, y: 11, z: 3 },    // Izquierda para E
-  'F': { x: 25, y: 11, z: 2 },     // Arriba y al fondo para F
-  'G': { x: 25.31, y: 11, z: 4.01 },     // Derecha para G
-  'H': { x: 25.31, y: 11, z: 4.01 },    // Arriba y al frente para H
-  'I': { x: 25.31, y: 11, z: 4.01 },    // Izquierda para I
-  'J': { x: 25, y: 11, z: 4}      // Arriba y al fondo para J
+
+function crearMarcaAguaPasillo(letraPasillo, posicion) {
+    // Crear un canvas para la textura
+    const canvas = document.createElement('canvas');
+    canvas.width = 2048; // Más ancho para mejor resolución
+    canvas.height = 256; // Más alto para letras grandes
+    const ctx = canvas.getContext('2d');
+
+    // Fondo transparente
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  // Texto muy grande y semitransparente
+    ctx.font = 'bold 180px Arial';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    // --- Dibuja el contorno rojo ---
+    ctx.lineWidth = 12; // Grosor del contorno
+    ctx.strokeStyle = 'rgba(255,0,0,0.7)'; // Rojo semitransparente
+    ctx.strokeText(`PASILLO ${letraPasillo}`, canvas.width / 2, canvas.height / 2);
+
+    // --- Dibuja el relleno azul claro ---
+    ctx.fillStyle = 'rgba(33,150,243,0.18)';
+    ctx.fillText(`PASILLO ${letraPasillo}`, canvas.width / 2, canvas.height / 2);
+
+    // Crear textura y material
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+
+    const material = new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        depthWrite: false
+    });
+
+    // Plano mucho más largo y ancho
+    const ancho = 50; // Ajusta según el largo de tu pasillo
+    const alto = 3.5; // Ajusta según el ancho del pasillo
+
+    const geometry = new THREE.PlaneGeometry(ancho, alto);
+
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(posicion.x, posicion.y, posicion.z);
+
+    mesh.renderOrder = 1;
+    mesh.userData.pasillo = letraPasillo; // <--- Añade esto
+
+    scene.add(mesh);
+}
+
+function crearMarcasAguaPasillos() {
+    const racksArray = ['A','B','C','D','E','F','G','H','I','J'];
+    for (let i = 0; i < racksArray.length; i++) {
+        const letra = racksArray[i];
+        const pos = posicionesEtiquetasPasillo[letra];
+        if (pos) {
+            // Usar x y z de posicionesEtiquetaRack, pero y=0.01 para el piso
+            crearMarcaAguaPasillo(letra, { x: pos.x, y: 0.01, z: pos.z });
+        }
+    }
+}
+
+function actualizarVisibilidadMarcasAguaPasillos(pasilloSeleccionado) {
+    scene.children.forEach(obj => {
+        // Solo marcas de agua de pasillo (Mesh con userData.pasillo)
+        if (obj.isMesh && obj.userData && obj.userData.pasillo) {
+            if (pasilloSeleccionado === 'all') {
+                obj.visible = true;
+            } else {
+                obj.visible = (obj.userData.pasillo === pasilloSeleccionado);
+            }
+        }
+    });
+}
+
+function crearMarcaAguaRectangularImagen(urlImagen, posicion, ancho = 7, alto = 4, rotacionY = 0) {
+    // Crear un canvas rectangular
+    const sizeX = 4096, sizeY = 1024;
+    const canvas = document.createElement('canvas');
+    canvas.width = sizeX;
+    canvas.height = sizeY;
+    const ctx = canvas.getContext('2d');
+
+    // Fondo transparente
+    ctx.clearRect(0, 0, sizeX, sizeY);
+
+    // Cargar la imagen
+    const img = new window.Image();
+    img.onload = function() {
+        // --- RECORTE AUTOMÁTICO DE MÁRGENES TRANSPARENTES ---
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = img.width;
+        tempCanvas.height = img.height;
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.drawImage(img, 0, 0);
+
+        const imageData = tempCtx.getImageData(0, 0, img.width, img.height);
+        const data = imageData.data;
+
+        let minY = img.height, maxY = 0;
+        let minX = img.width, maxX = 0;
+
+        // Buscar los bordes no transparentes
+        for (let y = 0; y < img.height; y++) {
+            for (let x = 0; x < img.width; x++) {
+                const i = (y * img.width + x) * 4;
+                if (data[i + 3] > 10) { // Si el pixel NO es transparente
+                    if (x < minX) minX = x;
+                    if (x > maxX) maxX = x;
+                    if (y < minY) minY = y;
+                    if (y > maxY) maxY = y;
+                }
+            }
+        }
+
+        // Si no encontró nada, usar toda la imagen
+        if (minX > maxX || minY > maxY) {
+            minX = 0; minY = 0; maxX = img.width-1; maxY = img.height-1;
+        }
+
+        const cropWidth = maxX - minX + 1;
+        const cropHeight = maxY - minY + 1;
+
+        // Ahora calcula el drawWidth/drawHeight como antes, pero usando cropWidth/cropHeight
+        const imgAspect = cropWidth / cropHeight;
+        const canvasAspect = sizeX / sizeY;
+        let drawWidth, drawHeight, offsetX, offsetY;
+
+        if (imgAspect > canvasAspect) {
+            drawWidth = sizeX * 0.92;
+            drawHeight = drawWidth / imgAspect;
+            offsetX = sizeX * 0.04;
+            offsetY = (sizeY - drawHeight) / 2;
+        } else {
+            drawHeight = sizeY * 0.92;
+            drawWidth = drawHeight * imgAspect;
+            offsetY = sizeY * 0.04;
+            offsetX = (sizeX - drawWidth) / 2;
+        }
+
+        // Dibuja solo el área recortada de la imagen
+        ctx.drawImage(img, minX, minY, cropWidth, cropHeight, offsetX, offsetY, drawWidth, drawHeight);
+
+        // Dibuja el borde azul justo alrededor de la imagen recortada
+        ctx.lineWidth = 12;
+        ctx.strokeStyle = 'rgba(33, 150, 243, 0.35)';
+        ctx.strokeRect(offsetX + 6, offsetY + 6, drawWidth - 12, drawHeight - 12);
+
+        // Crear textura y material
+        const texture = new THREE.CanvasTexture(canvas);
+        texture.needsUpdate = true;
+        texture.minFilter = THREE.LinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        const material = new THREE.MeshBasicMaterial({
+            map: texture,
+            transparent: true,
+            opacity: 0.7,
+            depthWrite: false
+        });
+
+        // Geometría rectangular (usa los valores originales)
+        const geometry = new THREE.PlaneGeometry(ancho, alto);
+
+        const mesh = new THREE.Mesh(geometry, material);
+        mesh.position.set(posicion.x, posicion.y, posicion.z);
+        mesh.rotation.x = 0; // de pie
+        mesh.rotation.y = Math.PI / 2; // mirando al frente
+        mesh.rotation.z = 0; // sin giro extra
+
+        mesh.renderOrder = 2;
+        scene.add(mesh);
+    };
+    img.src = urlImagen;
+}
+
+// Ejemplo de uso (ajusta la posición al centro del círculo verde)
+crearMarcaAguaRectangularImagen('phx.png', { x: -45, y: 28, z: 45 }, 100, 20, 0); // rotacionY = 0
+
+const posicionesEtiquetasPasillo = {
+  'A': { x: 25, y: 0.01, z: 8.5 },
+  'B': { x: 25, y: 0.01, z: 17 },
+  'C': { x: 25, y: 0.01, z: 25 },
+  'D': { x: 25, y: 0.01, z: 33 },
+  'E': { x: 25, y: 0.01, z: 40 },
+  'F': { x: 25, y: 0.01, z: 50 },
+  'G': { x: 25, y: 0.01, z: 57 },
+  'H': { x: 25, y: 0.01, z: 65 },
+  'I': { x: 25, y: 0.01, z: 73 },
+  'J': { x: 25, y: 0.01, z: 81 }
 };
 
 
-function crearEtiquetaRack(rack, letraRack, anchuraRack, alturaRack, profundidad) {
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
-
-    // Más grande para mejor visibilidad
-    canvas.width = 800;
-    canvas.height = 220;
-
-    // Borde rojo más delgado
-    const padding = 14; // Grosor del borde rojo exterior
-
-    // Fondo rojo (borde exterior)
-    context.fillStyle = '#d32f2f'; // Rojo fuerte
-    context.fillRect(0, 0, canvas.width, canvas.height);
-
-    // Fondo blanco (interior)
-    context.fillStyle = '#FFFFFF';
-    context.fillRect(
-        padding,
-        padding,
-        canvas.width - padding * 2,
-        canvas.height - padding * 2
-    );
-
-    // Texto grande, negro y en negrita
-    context.font = 'bold 120px Arial';
-    context.fillStyle = '#000000'; // Negro
-    context.textAlign = 'center';
-    context.textBaseline = 'middle';
-
-    let textoEtiqueta = letraRack === 'J2' ? 'J' : letraRack;
-    context.fillText(`PASILLO ${textoEtiqueta}`, canvas.width / 2, canvas.height / 2);
-    // Posición centrada dentro del área blanca
-    const textoX = canvas.width / 2;
-    const textoY = canvas.height / 2;
-    context.fillText(`PASILLO ${textoEtiqueta}`, textoX, textoY);
-
-    // Convertimos el canvas en textura
-    const texture = new THREE.CanvasTexture(canvas);
-
-    // Configurar filtros para evitar pixelado o borrosidad
-    texture.wrapS = THREE.ClampToEdgeWrapping;
-    texture.wrapT = THREE.ClampToEdgeWrapping;
-    texture.minFilter = THREE.LinearFilter;
-    texture.magFilter = THREE.LinearFilter;
-
-    // Geometría del plano que contendrá la etiqueta
-    const placaAncho = 2.0;   // En unidades de Three.js
-    const placaAlto = 0.6;    // Proporcional al ancho
-
-    const placaGeometry = new THREE.PlaneGeometry(placaAncho, placaAlto);
-    const placaMaterial = new THREE.MeshBasicMaterial({ map: texture });
-    const placa = new THREE.Mesh(placaGeometry, placaMaterial);
-
-    const pos = posicionesEtiquetaRack[letraRack] || { x: anchuraRack / 2 + 0.1, y: alturaRack + 0.4, z: 0 };
-
-    // Aplica la posición personalizada
-    placa.position.set(pos.x, pos.y, pos.z);
-
-    // Aplica la rotación por defecto a todas las etiquetas
-    placa.rotation.y = Math.PI / 2;
-
-    // Añade la placa al rack
-    rack.add(placa);
-}
 
 
 
@@ -2250,6 +2367,8 @@ function inicializarRacks() {
 
     // Mostrar el esquema de recorrido
     mostrarEsquemaRecorrido();
+    crearMarcasAguaPasillos();
+
 }
 
 
@@ -3205,8 +3324,12 @@ async function manejarCambioRack() {
   const valor = selectRack.value;
   if (['A','B','C','D','E','F','G','H','I','J'].includes(valor)) {
       calcularOcupacionPorPasillo(valor);
+      actualizarVisibilidadMarcasAguaPasillos(valor); // <--- Añade esto
+
   } else {
       calcularOcupacionRacks(valor);
+      actualizarVisibilidadMarcasAguaPasillos('all'); // <--- Añade esto
+
   }
 }
 
@@ -3215,12 +3338,14 @@ async function resetearFiltros() {
   const selectRack = document.getElementById('rack-filter');
   const selectCliente = document.getElementById('cliente-filter');
   const selectArticulo = document.getElementById('articulo-filter');
-  
+  const selectArea = document.getElementById('area-filter'); // <-- Añadido
+
   // Resetear selectores
   selectRack.value = 'all';
   selectCliente.value = '';
   selectArticulo.value = '';
-  
+  if (selectArea) selectArea.value = 'all'; // <-- Resetear área
+
   // Limpiar campos de búsqueda
   const inputs = ['cliente-filter-search', 'articulo-filter-search'];
   inputs.forEach(inputId => {
@@ -3232,7 +3357,9 @@ async function resetearFiltros() {
   filtrosActivos = {
     rack: 'all',
     cliente: null,
-    articulo: null
+    articulo: null,
+    area: 'all' // <-- Resetear área
+
   };
   
   // Limpiar selector de artículos
@@ -3242,6 +3369,9 @@ async function resetearFiltros() {
   
   // Aplicar filtros (mostrar todo)
   await aplicarFiltrosDesdeAPI();
+
+  actualizarVisibilidadMarcasAguaPasillos('all'); // <--- AÑADE ESTA LÍNEA
+
 }
 
 // Función para manejar cambio de cliente
@@ -3296,7 +3426,7 @@ async function manejarCambioCliente() {
 
 // 1. Modificar la función de filtrado para usar las relaciones
 function filtrarCajas(filtros) {
-  const { rack, cliente, articulo } = filtros;
+  const { rack, cliente, articulo, area } = filtros;
 
   // Extraer solo el código del cliente (ej: "0000" de "0000 - DEMO")
   const codCliente = cliente ? cliente.split(' - ')[0] : null;
@@ -3315,6 +3445,10 @@ function filtrarCajas(filtros) {
       visible = visible && (userData.rack === rack);
     }
   }
+
+   if (area && area !== 'all') {
+      visible = visible && (userData.area === area);
+    }
 
     // Filtro por cliente - CORREGIDO
     if (codCliente) {
@@ -3353,6 +3487,8 @@ function filtrarCajas(filtros) {
       
       visible = visible && articuloEncontrado;
     }
+
+    
 
     caja.visible = visible;
   });
@@ -3896,7 +4032,8 @@ let ubicacionesFiltradas = [];
 let filtrosActivos = {
   rack: 'all',
   cliente: null,
-  articulo: null
+  articulo: null,
+  area: 'all'
 };
 
 // Función principal para aplicar filtros desde la API
@@ -3972,13 +4109,18 @@ function aplicarFiltrosVisuales(ubicacionesFiltradas, rackFiltro = 'all') {
   const racksConCajasVisibles = new Set();
 console.log('[DEBUG] racksCaras:', racksCaras);
   // Filtrar cajas con contenido
-  boxes.forEach(caja => {
-    const userData = caja.userData;
-    let visible = false;
+ boxes.forEach(caja => {
+  const userData = caja.userData;
+  let visible = false;
 
-    if (!userData.esPaletVacio) {
-      // Caja con contenido: aplicar filtros de cliente/artículo Y filtro de rack
-      if (idsVisibles.has(userData.id)) {
+  // === AÑADE ESTA LÍNEA PARA OBTENER EL ÁREA FILTRADA ===
+  const areaFiltro = filtrosActivos.area || 'all';
+
+  if (!userData.esPaletVacio) {
+    // Caja con contenido: aplicar filtros de cliente/artículo Y filtro de rack
+    if (idsVisibles.has(userData.id)) {
+      // === FILTRO DE ÁREA ===
+      if (areaFiltro === 'all' || userData.area === areaFiltro) {
         if (rackFiltro === 'all') {
           visible = true;
         } else {
@@ -3988,15 +4130,15 @@ console.log('[DEBUG] racksCaras:', racksCaras);
             (userData.lado === rc.lado || (!userData.lado && rc.lado === 'B'))
           );
         }
-        
         if (visible) {
           racksConCajasVisibles.add(userData.rack);
         }
       }
     }
-    
-    caja.visible = visible;
-  });
+  }
+  
+  caja.visible = visible;
+});
 
   // Filtrar palets vacíos
   boxes.forEach(caja => {
@@ -4075,6 +4217,7 @@ async function setupRackFilterUI() {
   const selectCliente = document.getElementById('cliente-filter');
   const selectArticulo = document.getElementById('articulo-filter');
   const resetBtn = document.getElementById('reset-filters');
+  const selectArea = document.getElementById('area-filter'); // <-- aquí
 
   // Cargar selectores iniciales
   await cargarSelectoresIniciales();
@@ -4088,7 +4231,8 @@ async function setupRackFilterUI() {
   selectRack.addEventListener('change', manejarCambioRack);
   selectCliente.addEventListener('change', manejarCambioCliente);
   selectArticulo.addEventListener('change', manejarCambioArticulo);
-  
+  selectArea.addEventListener('change', manejarCambioArea); // <-- aquí
+
   // Botón de enfoque
   if (focusBtn) {
     focusBtn.addEventListener('click', () => {
@@ -4110,7 +4254,10 @@ async function setupRackFilterUI() {
 function obtenerFiltrosActuales() {
   return { ...filtrosActivos };
 }
-
+async function manejarCambioArea() {
+  filtrosActivos.area = document.getElementById('area-filter').value || 'all';
+  await aplicarFiltrosDesdeAPI();
+}
 
 
 function cargarOpcionesFiltros() {
@@ -4332,10 +4479,9 @@ function validarCapacidadContraCajas(letraRack, capacidadCalculada) {
 
 
 // Función para mostrar las estadísticas en una ventana o panel
-function mostrarEstadisticasRacks(estadisticasRacks,  rackEspecifico = 'all') {
-     // Crear contenedor para el panel si no existe
+function mostrarEstadisticasRacks(estadisticasRacks, rackEspecifico = 'all') {
+    // Crear contenedor para el panel si no existe
     let panelEstadisticas = document.getElementById('panel-estadisticas');
-    
     if (!panelEstadisticas) {
         panelEstadisticas = document.createElement('div');
         panelEstadisticas.id = 'panel-estadisticas';
@@ -4352,94 +4498,105 @@ function mostrarEstadisticasRacks(estadisticasRacks,  rackEspecifico = 'all') {
         panelEstadisticas.style.fontFamily = 'Arial, sans-serif';
         document.body.appendChild(panelEstadisticas);
     } else {
-        // Si el panel ya existe, asegurarse de que sea visible
         panelEstadisticas.style.display = 'block';
     }
-    
-    // Limpiar panel existente
     panelEstadisticas.innerHTML = '';
 
     const esPasillo = ['A','B','C','D','E','F','G','H','I','J'].includes(rackEspecifico);
     const nombrePasillo = esPasillo ? `Pasillo ${rackEspecifico}` : rackEspecifico;
 
-    // Crear título dinámico basado en el rack seleccionado
-   const titulo = document.createElement('h2');
-  titulo.textContent = rackEspecifico === 'all' 
-    ? 'Estadísticas de Ocupación - Todos los Racks' 
-   : esPasillo
-    ? `Estadísticas de Ocupación - ${nombrePasillo}`
-    : `Estadísticas de Ocupación - Rack "${rackEspecifico}"`;
-    titulo.style.marginTop = '0';
-    titulo.style.marginBottom = '15px';
-    titulo.style.borderBottom = '1px solid #ccc';
-    titulo.style.paddingBottom = '5px';
-    panelEstadisticas.appendChild(titulo);
+    
+    // --- NUEVO: Detectar si hay filtro de área ---
+    const areaFiltrada = filtrosActivos.area && filtrosActivos.area !== 'all';
+    const areaTexto = areaFiltrada ? `${filtrosActivos.area} - ` : '';
+    
+ const clienteTexto = filtrosActivos.cliente
+        ? `Cliente ${filtrosActivos.cliente}${areaFiltrada ? ` (${filtrosActivos.area})` : ''} - `
+        : '';
 
+    // Título
+    const titulo = document.createElement('h2');
+      titulo.textContent =
+          rackEspecifico === 'all'
+              ? `Estadísticas de Ocupación ${areaTexto}${clienteTexto}Todos los Racks`
+              : esPasillo
+                  ? `Estadísticas de Ocupación ${areaTexto}${clienteTexto}${nombrePasillo}`
+                  : `Estadísticas de Ocupación ${areaTexto}${clienteTexto}Rack "${rackEspecifico}"`;
+      titulo.style.marginTop = '0';
+      titulo.style.marginBottom = '15px';
+      titulo.style.borderBottom = '1px solid #ccc';
+      titulo.style.paddingBottom = '5px';
+      panelEstadisticas.appendChild(titulo);
 
-    // Crear botón para cerrar
-    const btnCerrar = document.createElement('button');
-    btnCerrar.textContent = 'X';
+    // Botón cerrar
+   const btnCerrar = document.createElement('button');
+    btnCerrar.textContent = '✕';
     btnCerrar.style.position = 'absolute';
-    btnCerrar.style.top = '5px';
-    btnCerrar.style.right = '5px';
+    btnCerrar.style.top = '6px';           // Más abajo para centrar verticalmente
+    btnCerrar.style.right = '6px';         // Más adentro para centrar horizontalmente
     btnCerrar.style.background = '#f44336';
     btnCerrar.style.color = 'white';
     btnCerrar.style.border = 'none';
     btnCerrar.style.borderRadius = '50%';
-    btnCerrar.style.width = '25px';
-    btnCerrar.style.height = '25px';
+    btnCerrar.style.width = '16px';         // Más grande para mejor centrado
+    btnCerrar.style.height = '16px';
     btnCerrar.style.cursor = 'pointer';
     btnCerrar.style.fontWeight = 'bold';
+    btnCerrar.style.fontSize = '12px';
+    btnCerrar.style.display = 'flex';
+    btnCerrar.style.alignItems = 'center';
+    btnCerrar.style.justifyContent = 'center';
+    btnCerrar.style.padding = '0';
     btnCerrar.onclick = () => {
         panelEstadisticas.style.display = 'none';
     };
     panelEstadisticas.appendChild(btnCerrar);
-    
-    // Agregar estadísticas globales
+
+    // Estadísticas globales
     const totalRacks = Object.keys(estadisticasRacks).length;
     let capacidadTotal = 0;
     let totalOcupados = 0;
-    let totalEspeciales = 0;
-    let totalSinDisponibilidad = 0;
-    let totalDisponibles = 0;
-    
+
     Object.values(estadisticasRacks).forEach(stats => {
         capacidadTotal += stats.capacidadTotal;
         totalOcupados += stats.ocupados;
-        totalEspeciales += stats.especiales;
-        totalSinDisponibilidad += stats.sinDisponibilidad;
-        totalDisponibles += stats.disponibles;
     });
-    
+
     const resumenGlobal = document.createElement('div');
     resumenGlobal.style.marginBottom = '15px';
-     // Solo agregamos el título h3 si es para todos los racks
-    let contenidoHTML = rackEspecifico === 'all' 
-    ? `<h3>Resumen Global</h3>` 
-    : '';
+    let contenidoHTML = rackEspecifico === 'all'
+        ? `<h3>Resumen Global</h3>`
+        : '';
 
-    // Solo mostrar "Total de racks" si es 'all'
     if (rackEspecifico === 'all') {
         contenidoHTML += `<p><strong>Total de racks:</strong> ${totalRacks}</p>`;
     }
 
-    contenidoHTML += `
-        <p><strong>Capacidad total:</strong> ${capacidadTotal} posiciones</p>
-        <p><strong>Ocupación total:</strong> ${totalOcupados} (${((totalOcupados / capacidadTotal) * 100).toFixed(2)}%)</p>
-        <p><strong>Posiciones vacías:</strong> ${capacidadTotal - totalOcupados} (${(((capacidadTotal - totalOcupados) / capacidadTotal) * 100).toFixed(2)}%)</p>
-        <hr>
-    `;
-    
+    // Mostrar N/A si hay filtro de área
+    if (areaFiltrada) {
+        contenidoHTML += `
+            <p><strong>Capacidad instalada:</strong> N/A</p>
+            <p><strong>Capacidad utilizada:</strong> ${totalOcupados} (N/A%)</p>
+            <p><strong>Capacidad disponible:</strong> N/A</p>
+            <hr>
+        `;
+    } else {
+        contenidoHTML += `
+            <p><strong>Capacidad instalada:</strong> ${capacidadTotal} posiciones</p>
+            <p><strong>Capacidad utilizada:</strong> ${totalOcupados} (${((totalOcupados / capacidadTotal) * 100).toFixed(2)}%)</p>
+            <p><strong>Capacidad disponible:</strong> ${capacidadTotal - totalOcupados} (${(((capacidadTotal - totalOcupados) / capacidadTotal) * 100).toFixed(2)}%)</p>
+            <hr>
+        `;
+    }
     resumenGlobal.innerHTML = contenidoHTML;
     panelEstadisticas.appendChild(resumenGlobal);
-    
-    // Crear una tabla para mejorar la visualización
+
+    // Tabla
     const table = document.createElement('table');
     table.style.width = '100%';
     table.style.borderCollapse = 'collapse';
-    
-    // Crear encabezado de tabla
-   const thead = document.createElement('thead');
+
+    const thead = document.createElement('thead');
     thead.innerHTML = `
     <tr style="background-color: #f2f2f2;">
     <th style="padding: 8px; text-align: left; border: 1px solid #ddd;">${esPasillo ? 'Pasillo' : 'Rack'}</th>
@@ -4447,114 +4604,128 @@ function mostrarEstadisticasRacks(estadisticasRacks,  rackEspecifico = 'all') {
     <th style="padding: 8px; text-align: center; border: 1px solid #ddd;">Ocupados</th>
     <th style="padding: 8px; text-align: center; border: 1px solid #ddd;">Vacíos</th>
     <th style="padding: 8px; text-align: center; border: 1px solid #ddd;">% Ocupación</th>
-  </tr>
-  `;
+    </tr>
+    `;
     table.appendChild(thead);
-    
+
     const tbody = document.createElement('tbody');
-    
-    // Ordenar racks alfabéticamente
     const letrasRack = Object.keys(estadisticasRacks).sort();
-    
-    // Añadir una fila por cada rack
+
     letrasRack.forEach(letraRack => {
         const stats = estadisticasRacks[letraRack];
         const row = document.createElement('tr');
-        
-        
-        // Determinar color de fondo según nivel de ocupación
+
+        // Color de fondo según ocupación
         let bgColor = '#ffffff';
         if (stats.ocupacionTotal > 90) {
-            bgColor = '#ffcccc'; // Rojo claro (muy ocupado)
+            bgColor = '#ffcccc';
         } else if (stats.ocupacionTotal > 70) {
-            bgColor = '#ffffcc'; // Amarillo claro (ocupación media-alta)
+            bgColor = '#ffffcc';
         } else if (stats.ocupacionTotal > 50) {
-            bgColor = '#e6ffe6'; // Verde claro (ocupación media)
+            bgColor = '#e6ffe6';
         } else {
-            bgColor = '#ccffcc'; // Verde más claro (poca ocupación)
+            bgColor = '#ccffcc';
         }
-        
         row.style.backgroundColor = bgColor;
-        
+
         const nombreMostrar = esPasillo ? nombrePasillo : `Rack ${letraRack}`;
+
+        // Si hay filtro de área, mostrar N/A en capacidad, vacíos y % ocupación
+        const capacidad = areaFiltrada ? 'N/A' : stats.capacidadTotal;
+        const vacios = areaFiltrada ? 'N/A' : stats.vacios;
+        const porcentaje = areaFiltrada ? 'N/A' : `${stats.ocupacionTotal.toFixed(2)}%`;
+
         row.innerHTML = `
           <td style="padding: 8px; border: 1px solid #ddd;"><strong>${nombreMostrar}</strong></td>
-          <td style="padding: 8px; text-align: center; border: 1px solid #ddd;">${stats.capacidadTotal}</td>
+          <td style="padding: 8px; text-align: center; border: 1px solid #ddd;">${capacidad}</td>
           <td style="padding: 8px; text-align: center; border: 1px solid #ddd;">${stats.ocupados}</td>
-          <td style="padding: 8px; text-align: center; border: 1px solid #ddd;">${stats.vacios}</td>
-          <td style="padding: 8px; text-align: center; border: 1px solid #ddd;">${stats.ocupacionTotal.toFixed(2)}%</td>
+          <td style="padding: 8px; text-align: center; border: 1px solid #ddd;">${vacios}</td>
+          <td style="padding: 8px; text-align: center; border: 1px solid #ddd;">${porcentaje}</td>
         `;
         tbody.appendChild(row);
     });
-    
+
     table.appendChild(tbody);
     panelEstadisticas.appendChild(table);
-    
-    // Crear gráficos visuales para cada rack
+
+    // Gráficos visuales
     const graficosContainer = document.createElement('div');
     graficosContainer.style.marginTop = '20px';
-    
+
     const tituloGraficos = document.createElement('h3');
     tituloGraficos.textContent = 'Visualización de Ocupación';
     tituloGraficos.style.borderBottom = '1px solid #ccc';
     tituloGraficos.style.paddingBottom = '5px';
     graficosContainer.appendChild(tituloGraficos);
-    
+
     letrasRack.forEach(letraRack => {
         const stats = estadisticasRacks[letraRack];
-        
         const graficoBarra = document.createElement('div');
         graficoBarra.style.margin = '10px 0';
-        
+
         const tituloRack = document.createElement('div');
         tituloRack.textContent = esPasillo ? nombrePasillo : `Rack ${letraRack}`;
         tituloRack.style.fontWeight = 'bold';
         tituloRack.style.marginBottom = '3px';
         graficoBarra.appendChild(tituloRack);
-        
-       // Reemplaza la creación compleja de barras con este código más simple
-    const barraCompleta = document.createElement('div');
-    barraCompleta.style.width = '100%';
-    barraCompleta.style.height = '25px';
-    barraCompleta.style.display = 'flex';
-    barraCompleta.style.overflow = 'hidden';
-    barraCompleta.style.borderRadius = '3px';
-    barraCompleta.style.border = '1px solid #ccc';
 
-    // Solo dos colores: ocupado y vacío
-    const barraOcupados = document.createElement('div');
-    barraOcupados.style.width = `${stats.ocupacionTotal}%`;
-    barraOcupados.style.backgroundColor = '#2196F3'; // Azul para todos los ocupados
-    barraOcupados.style.height = '100%';
-    barraOcupados.title = `Ocupados: ${stats.ocupados} (${stats.ocupacionTotal.toFixed(2)}%)`;
-    barraCompleta.appendChild(barraOcupados);
+        // Barra visual
+        const barraCompleta = document.createElement('div');
+        barraCompleta.style.width = '100%';
+        barraCompleta.style.height = '25px';
+        barraCompleta.style.display = 'flex';
+        barraCompleta.style.overflow = 'hidden';
+        barraCompleta.style.borderRadius = '3px';
+        barraCompleta.style.border = '1px solid #ccc';
 
-    // Barra para Vacantes (gris claro)
-    if (stats.porcentajeVacantes > 0) {
-        const barraVacantes = document.createElement('div');
-        barraVacantes.style.width = `${stats.porcentajeVacantes}%`;
-        barraVacantes.style.backgroundColor = '#E0E0E0';
-        barraVacantes.style.height = '100%';
-        barraVacantes.title = `Vacíos: ${stats.vacantes} (${stats.porcentajeVacantes.toFixed(2)}%)`;
-        barraCompleta.appendChild(barraVacantes);
-    }
-            graficoBarra.appendChild(barraCompleta);
-            
-            // Leyenda para la barra
-            const leyenda = document.createElement('div');
-            leyenda.style.fontSize = '12px';
-            leyenda.style.color = '#666';
-            leyenda.style.marginTop = '2px';
+        // Solo mostrar barra azul si hay filtro de área
+        if (areaFiltrada) {
+            const barraOcupados = document.createElement('div');
+            barraOcupados.style.width = '100%';
+            barraOcupados.style.backgroundColor = '#2196F3';
+            barraOcupados.style.height = '100%';
+            barraOcupados.title = `Ocupados: ${stats.ocupados}`;
+            barraCompleta.appendChild(barraOcupados);
+        } else {
+            const barraOcupados = document.createElement('div');
+            barraOcupados.style.width = `${stats.ocupacionTotal}%`;
+            barraOcupados.style.backgroundColor = '#2196F3';
+            barraOcupados.style.height = '100%';
+            barraOcupados.title = `Ocupados: ${stats.ocupados} (${stats.ocupacionTotal.toFixed(2)}%)`;
+            barraCompleta.appendChild(barraOcupados);
+
+            // Barra para vacantes (gris claro)
+            if (stats.capacidadTotal > 0) {
+                const porcentajeVacantes = 100 - stats.ocupacionTotal;
+                if (porcentajeVacantes > 0) {
+                    const barraVacantes = document.createElement('div');
+                    barraVacantes.style.width = `${porcentajeVacantes}%`;
+                    barraVacantes.style.backgroundColor = '#E0E0E0';
+                    barraVacantes.style.height = '100%';
+                    barraVacantes.title = `Vacíos: ${stats.vacios} (${porcentajeVacantes.toFixed(2)}%)`;
+                    barraCompleta.appendChild(barraVacantes);
+                }
+            }
+        }
+        graficoBarra.appendChild(barraCompleta);
+
+        // Leyenda
+        const leyenda = document.createElement('div');
+        leyenda.style.fontSize = '12px';
+        leyenda.style.color = '#666';
+        leyenda.style.marginTop = '2px';
+        if (areaFiltrada) {
+            leyenda.textContent = `${stats.ocupados} de N/A ocupados (N/A%)`;
+        } else {
             leyenda.textContent = `${stats.ocupados} de ${stats.capacidadTotal} ocupados (${stats.ocupacionTotal.toFixed(2)}%)`;
-            graficoBarra.appendChild(leyenda);
-            
-            graficosContainer.appendChild(graficoBarra);
-        });
-        
-        panelEstadisticas.appendChild(graficosContainer);
-      
-}
+        }
+        graficoBarra.appendChild(leyenda);
 
+        graficosContainer.appendChild(graficoBarra);
+    });
+
+    panelEstadisticas.appendChild(graficosContainer);
+}
 // Función para integrar el botón en la interfaz existente
 function integrarAnalisisOcupacion() {
     // Crear botón para mostrar estadísticas
